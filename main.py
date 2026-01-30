@@ -1,84 +1,65 @@
-import ast
-from pathlib import Path
+import os
+import tree_sitter_python as tspython
+from tree_sitter import Language, Parser
 
-def get_chunks_from_file(file_path: Path):
-    """
-    Parse a Python file and return semantic chunks:
-    - functions
-    - classes
-    - imports
-    - top-level code
-    """
-    chunks = []
-    code = file_path.read_text(encoding="utf-8")
+# Initialize the Parser
+PY_LANGUAGE = Language(tspython.language())
+parser = Parser(PY_LANGUAGE)
+
+def analyze_file_for_agent(file_path):
+    if not os.path.exists(file_path):
+        return "File not found.", []
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        source_code = f.read()
     
-    # Parse the file into an AST
-    tree = ast.parse(code, filename=str(file_path))
+    source_bytes = bytes(source_code, "utf8")
+    tree = parser.parse(source_bytes)
+    root = tree.root_node
+    
+    context_lines = []
+    function_chunks = []
 
-    # Helper function to extract code snippet by line numbers
-    def get_code(node):
-        start = node.lineno - 1
-        end = node.end_lineno
-        lines = code.splitlines()[start:end]
-        return "\n".join(lines)
+    for child in root.children:
+        # 1. Capture Imports and Globals for the Header
+        if child.type in ['import_statement', 'import_from_statement']:
+            context_lines.append(child.text.decode('utf8'))
+        
+        elif child.type == 'expression_statement':
+            # Checks for top-level assignments like: API_KEY = "..."
+            if child.children and child.children[0].type == 'assignment':
+                context_lines.append(child.text.decode('utf8'))
 
-    # Walk through top-level nodes
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef):
-            chunks.append({
-                "file": str(file_path),
-                "chunk_type": "function",
-                "name": node.name,
-                "start_line": node.lineno,
-                "end_line": node.end_lineno,
-                "code": get_code(node)
-            })
-        elif isinstance(node, ast.ClassDef):
-            chunks.append({
-                "file": str(file_path),
-                "chunk_type": "class",
-                "name": node.name,
-                "start_line": node.lineno,
-                "end_line": node.end_lineno,
-                "code": get_code(node)
-            })
-        elif isinstance(node, (ast.Import, ast.ImportFrom)):
-            chunks.append({
-                "file": str(file_path),
-                "chunk_type": "import",
-                "name": None,
-                "start_line": node.lineno,
-                "end_line": node.end_lineno,
-                "code": get_code(node)
-            })
-        else:
-            chunks.append({
-                "file": str(file_path),
-                "chunk_type": "top_level",
-                "name": None,
-                "start_line": node.lineno,
-                "end_line": getattr(node, "end_lineno", node.lineno),
-                "code": get_code(node)
-            })
-    return chunks
+        # 2. Capture Function Signatures (The "Map")
+        elif child.type == 'function_definition':
+            # Extract just the first line (the def line)
+            # This prevents hallucinations about what functions are available
+            sig_end = child.named_child(1).end_byte # End of parameters
+            sig = source_bytes[child.start_byte:sig_end].decode('utf8') + ":"
+            context_lines.append(f"# Available function: {sig} ...")
+            
+            # Store the full body as a chunk for analysis
+            function_chunks.append(child.text.decode('utf8'))
 
-# --- Example: scan an entire project folder ---
-def chunk_project(project_dir: Path):
-    all_chunks = []
-    for py_file in project_dir.rglob("*.py"):
-        all_chunks.extend(get_chunks_from_file(py_file))
-    return all_chunks
+    header = "\n".join(context_lines)
+    return header, function_chunks
 
-# --- Example usage ---
-if __name__ == "__main__":
-    project_path = input("Enter path to your Python project: ")
-    chunks = chunk_project(Path(project_path))
-    for c in chunks:
-        print(f"File: {c['file']}")
-        print(f"Type: {c['chunk_type']}")
-        if c["name"]:
-            print(f"Name: {c['name']}")
-        print(f"Lines: {c['start_line']}-{c['end_line']}")
-        print("Code:")
-        print(c["code"])
-        print("-" * 50)
+# --- Execution ---
+file_name = "vulnerable_app.py" # Replace with your target file
+header_info, chunks = analyze_file_for_agent(file_name)
+
+for idx, chunk in enumerate(chunks):
+    prompt = f"""
+    SYSTEM: You are a vulnerability research agent.
+    
+    FILE CONTEXT:
+    {header_info}
+    
+    TARGET CODE BLOCK:
+    {chunk}
+    
+    TASK: Analyze the TARGET CODE BLOCK for vulnerabilities (SQLi, XSS, RCE, etc).
+    Use the FILE CONTEXT to understand where variables and imports come from.
+    """
+    print(f"--- PREPARED PROMPT FOR CHUNK {idx+1} ---")
+    print(prompt)
