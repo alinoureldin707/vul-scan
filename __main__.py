@@ -5,6 +5,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 import datetime
 from config import MODEL_NAME, TEMPERATURE, GROQ_API_KEY
+from langchain.agents import create_agent
+from pydantic import BaseModel, Field
+from typing import List
 
 # 1. Initialize Groq LLM via LangChain
 # Set your GROQ_API_KEY as an environment variable or pass it here
@@ -59,21 +62,36 @@ if __name__ == "__main__":
         for i, task in enumerate(tasks):
             print(f"[{i+1}/{len(tasks)}] Analyzing: {task['file']}")
             
-            # Invoke the LangChain + Groq chain
-            response = chain.invoke({
-                "context": task['context'],
-                "code_segment": task['code_segment']
-            })
-
-            # 4. Write results to file
-            f.write(f"FILE: {task['file']}\n")
-            f.write(f"CHUNK TYPE: Logic Block\n")
-            f.write("-" * 30 + "\n")
-            f.write(f"ANALYSIS:\n{response}\n")
-            f.write("\n" + "="*50 + "\n\n")
+            print(task['context'])
+            print(task['code_segment'])
 
             # Also print to console so you can track progress
             print("Done.")
 
     print(f"\nAudit complete. Results saved to {report_file}")
         
+
+def build_agent(name, tools, system_prompt, response_format=None):
+    """Constructs a LangChain agent bound to a small set of tools."""
+    model = ChatGroq(model=MODEL_NAME, temperature=TEMPERATURE)
+    agent = create_agent(
+        name=name,
+        model=model,
+        tools=tools,
+        system_prompt=system_prompt,
+        response_format=response_format,
+    )
+    return agent
+
+
+class CVEItem(BaseModel):
+    cve_id: str = Field(alias="CVE ID", description="The CVE ID")
+    severity: str
+    score: float
+    vectors: str
+    affected_products: List[str]
+    published_date: str
+    description: str
+    source_bias_note: str = Field(description="Note on potential source bias (e.g., legacy system scarcity)")
+
+build_agent("name", tools=[], system_prompt="You are a security analysis agent.", response_format=CVEItem)
