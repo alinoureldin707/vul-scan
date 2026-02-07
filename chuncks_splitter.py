@@ -3,6 +3,7 @@ import tree_sitter_python as tspython
 from tree_sitter import Language, Parser
 import tree_sitter_javascript as tsjs
 import tree_sitter_typescript as tsts
+from models import CodeChunk
 
 def get_language_from_extension(file_extension):
     """Returns the programming language based on file extension."""
@@ -15,7 +16,7 @@ def get_language_from_extension(file_extension):
     else:
         return None
 
-def get_all_code_tasks(input_path):
+def get_all_code_tasks(input_path: str) -> list[CodeChunk]:
     """
     Scans a directory OR a single file and returns a list of 'task' dictionaries.
     """
@@ -83,7 +84,6 @@ def _parse_file_to_chunks(file_path, language):
     chunks = []
 
     for child in tree.root_node.children:
-        print(child.type)
         # 1. Capture Comments (Works for both)
         if child.type == 'comment':
             header_lines.append(child.text.decode('utf8'))

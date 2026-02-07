@@ -1,50 +1,37 @@
+from Agent_OWASP import OWASPFunctionReport
 from chuncks_splitter import get_all_code_tasks
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from config import MODEL_NAME, TEMPERATURE, GROQ_API_KEY
-from langchain.agents import create_agent
-from pydantic import BaseModel, Field
-from typing import List
+from models import CodeChunk
+from agent import agent_analyzer
 
-# 1. Initialize Groq LLM via LangChain
-# Set your GROQ_API_KEY as an environment variable or pass it here
-llm = ChatGroq(
-    model_name=MODEL_NAME,
-    temperature=TEMPERATURE, # Low temperature for consistent security analysis
-    groq_api_key=GROQ_API_KEY 
-)
+def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
+    """
+    Takes a CodeChunk and returns an OWASPFunctionReport.
+    """
+    # --- Extract info from the chunk ---
+    file_path = code_chunk['file']
+    context = code_chunk['context']
+    code_segment = code_chunk['code_segment']
 
-# 2. Define the Security Prompt Template
-prompt_template = ChatPromptTemplate.from_messages([
-    ("system", "You are an expert security researcher. Analyze the following Python code for vulnerabilities like SQL injection, RCE, or insecure data handling."),
-    ("user", "CONTEXT (Imports & Globals):\n{context}\n\nTARGET CODE BLOCK:\n{code_segment}\n\nAnalyze the code segment above. If a vulnerability exists, explain why and provide a fix.")
-])
+    # --- Build the prompt for the agent ---
+    prompt = f"""Analyze the following code segment for OWASP vulnerabilities. Provide a structured report based on the OWASP Top 10.
+File: {file_path}
+Context: {context}
+```
+{code_segment}
+```
+    """
+    # --- Invoke the agent ---
+    report = agent_analyzer.invoke({
+        "messages": [
+            {"role": "user", "content": prompt}
+        ]
+    })
+    return report
 
-# 3. Create the Chain
-chain = prompt_template | llm | StrOutputParser()
-
-def run_agent_test(analysis_queue):
-    """Processes the queue through the Groq-powered LangChain"""
-    for task in analysis_queue:
-        print(f"\n--- Testing File: {task['file']} ---")
-        
-        # Invoke the chain using the dictionary from our previous script
-        response = chain.invoke({
-            "context": task['context'],
-            "code_segment": task['code_segment']
-        })
-        
-        print(response)
-        print("-" * 50)
-
-# --- Integration Example ---
-# Assuming 'analysis_queue' comes from the scan_directory function
-# run_agent_test(analysis_queue)
 
 if __name__ == "__main__":
 # 1. Configuration
-    project_path = "./project/test.ts" 
+    project_path = "./project/vulnerable_app.py" 
     report_file = f"vulnerability_report_.txt"
 
     # 2. Extract tasks using our Tree-sitter logic
@@ -56,12 +43,20 @@ if __name__ == "__main__":
     with open(report_file, "w", encoding="utf-8") as f:
         for i, task in enumerate(tasks):
             print(f"[{i+1}/{len(tasks)}] Analyzing: {task['file']}")
-            
-            print(task['context'])
-            print(task['code_segment'])
-
-            # Also print to console so you can track progress
-            print("Done.")
+            report = analyze_code_chunk(task)
+            response: OWASPFunctionReport = report['structured_response']
+            for vulnerability in response.vulnerabilities:
+                f.write(f"File: {task['file']}\n")
+                f.write(f"Context: {task['context']}\n")
+                f.write(f"Vulnerability: {vulnerability.name}\n")
+                f.write(f"Description: {vulnerability.description}\n")
+                f.write(f"Evidence: {vulnerability.evidence}\n")
+                f.write("Exploitation Steps:\n")
+                for step in vulnerability.exploitation_steps:
+                    f.write(f"  - {step}\n")
+                f.write(f"Impact: {vulnerability.impact}\n")
+                f.write(f"Mitigation: {vulnerability.mitigation}\n")
+                f.write("-" * 80 + "\n")
+            f.write("-" * 80 + "\n")
 
     print(f"\nAudit complete. Results saved to {report_file}")
-        
