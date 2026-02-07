@@ -1,6 +1,5 @@
-from Agent_OWASP import OWASPFunctionReport
 from chuncks_splitter import get_all_code_tasks
-from models import CodeChunk
+from models import CodeChunk, OWASPFunctionReport
 from agent import agent_analyzer
 
 def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
