@@ -1,6 +1,7 @@
 from chuncks_splitter import get_all_code_tasks
 from models import CodeChunk, OWASPFunctionReport
 from agent import agent_analyzer
+from printer import print_header, print_vulnerability, print_summary
 
 def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
     """
@@ -30,32 +31,68 @@ Context: {context}
 
 if __name__ == "__main__":
 # 1. Configuration
-    project_path = "./project/vulnerable_app.py" 
+    project_path = "./project" 
     report_file = f"vulnerability_report_.txt"
 
     # 2. Extract tasks using our Tree-sitter logic
     tasks = get_all_code_tasks(project_path)
 
-    print(f"Found {len(tasks)} chunks to analyze. Saving results to: {report_file}")
+    print(f"Found {len(tasks)} chunks to analyze.")
 
-    # 3. Open file and iterate through tasks
-    with open(report_file, "w", encoding="utf-8") as f:
-        for i, task in enumerate(tasks):
-            print(f"[{i+1}/{len(tasks)}] Analyzing: {task['file']}")
-            report = analyze_code_chunk(task)
-            response: OWASPFunctionReport = report['structured_response']
-            for vulnerability in response.vulnerabilities:
-                f.write(f"File: {task['file']}\n")
-                f.write(f"Context: {task['context']}\n")
-                f.write(f"Vulnerability: {vulnerability.name}\n")
-                f.write(f"Description: {vulnerability.description}\n")
-                f.write(f"Evidence: {vulnerability.evidence}\n")
-                f.write("Exploitation Steps:\n")
-                for step in vulnerability.exploitation_steps:
-                    f.write(f"  - {step}\n")
-                f.write(f"Impact: {vulnerability.impact}\n")
-                f.write(f"Mitigation: {vulnerability.mitigation}\n")
-                f.write("-" * 80 + "\n")
-            f.write("-" * 80 + "\n")
+    summary = {}
 
-    print(f"\nAudit complete. Results saved to {report_file}")
+    # 3. Iterate through tasks and print to console sequentially
+    for i, task in enumerate(tasks):
+        file_path = task.get("file")
+        print_header(i + 1, len(tasks), file_path)
+
+        try:
+            report_raw = analyze_code_chunk(task)
+        except Exception as e:
+            print(f"Agent invocation failed for {file_path}: {e}")
+            summary[file_path] = summary.get(file_path, 0)
+            continue
+
+        # Normalize response shapes
+        structured = None
+        if isinstance(report_raw, OWASPFunctionReport):
+            structured = report_raw
+        elif isinstance(report_raw, dict) and "structured_response" in report_raw:
+            structured = report_raw["structured_response"]
+        elif hasattr(report_raw, "structured_response"):
+            structured = report_raw.structured_response
+        elif isinstance(report_raw, dict) and "vulnerabilities" in report_raw:
+            # sometimes agent returns raw dict
+            try:
+                if hasattr(OWASPFunctionReport, "model_validate"):
+                    structured = OWASPFunctionReport.model_validate(report_raw)
+                else:
+                    structured = OWASPFunctionReport.parse_obj(report_raw)
+            except Exception:
+                structured = None
+
+        if structured is None:
+            print("Could not parse structured response from agent. Raw output:\n", report_raw)
+            summary[file_path] = summary.get(file_path, 0)
+            continue
+
+        vulns = getattr(structured, "vulnerabilities", None)
+        if vulns is None:
+            # If pydantic model; try dict access
+            try:
+                vulns = structured.get("vulnerabilities", [])
+            except Exception:
+                vulns = []
+
+        count = 0
+        if not vulns:
+            print("No OWASP Top-10 vulnerabilities found in this chunk.")
+        else:
+            for v in vulns:
+                print_vulnerability(v)
+                count += 1
+
+        summary[file_path] = summary.get(file_path, 0) + count
+
+    # Print summary table
+    print_summary(summary)
