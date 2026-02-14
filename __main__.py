@@ -2,6 +2,7 @@ from chuncks_splitter import get_all_code_tasks
 from models import CodeChunk, OWASPFunctionReport
 from agent import agent_analyzer
 from printer import print_header, print_vulnerability, print_summary
+import sys
 
 def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
     """
@@ -31,7 +32,7 @@ Context: {context}
 
 if __name__ == "__main__":
 # 1. Configuration
-    project_path = "./project" 
+    project_path = "./project/no_vulnerable.py" 
     report_file = f"vulnerability_report_.txt"
 
     # 2. Extract tasks using our Tree-sitter logic
@@ -96,3 +97,11 @@ if __name__ == "__main__":
 
     # Print summary table
     print_summary(summary)
+
+    total_vulnerabilities= sum(summary.values())
+    if total_vulnerabilities>0:
+        print (f"\n {total_vulnerabilities} vulnerabilities detected. Blocking deployment.")
+        sys.exit(1) #makes CI fail
+    else:
+        print("\n No vulnerabilities detected. Safe to deploy.")
+        sys.exit(0) #allow CI to pass
