@@ -1,0 +1,8 @@
+name: Security Scan
+on: 
+    push: 
+        branches: [master]
+
+jobs: 
+    scan: 
+        runs-on: ubuntu-latest
