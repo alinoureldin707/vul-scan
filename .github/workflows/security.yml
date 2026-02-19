@@ -20,11 +20,10 @@ jobs:
           python-version: '3.9'
 
       - name: Install dependencies
-        run: pip install
-            langchain==0.0.227 langchain-groq==0.0.12 python-dotenv \
-            tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript \
-            pydantic rich
-
+        run: |
+          pip install --upgrade --force-reinstall langchain==0.0.227 langchain-groq \
+                    python-dotenv tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript \
+                    pydantic rich
 
       - name: Security Scan
         run: python ./__main__.py
