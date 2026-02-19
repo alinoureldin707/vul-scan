@@ -9,6 +9,8 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}  # Inject secret safely
 
     steps:
       - uses: actions/checkout@v4
@@ -17,8 +19,15 @@ jobs:
         with:
           python-version: '3.9'
 
+      - name: Install dependencies
+        run: |
+          pip install python-dotenv langchain langchain-groq \
+                      tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript \
+                      pydantic rich
+
       - name: Security Scan
         run: python ./__main__.py
 
       - name: Ready Message
+        if: success()  # Only runs if Security Scan passed
         run: echo "All checks passed — Ready to be deployed"
