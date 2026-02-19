@@ -3,6 +3,7 @@ try:
     from rich.table import Table
     from rich.panel import Panel
     from rich.markdown import Markdown
+
     console = Console()
     RICH_AVAILABLE = True
 except Exception:
@@ -30,7 +31,9 @@ def print_vulnerability(vuln):
     name = _safe_get(vuln, "name") or ""
     description = _safe_get(vuln, "description") or ""
     evidence = _safe_get(vuln, "evidence") or ""
-    steps = _safe_get(vuln, "exploitation_steps") or _safe_get(vuln, "exploitation") or []
+    steps = (
+        _safe_get(vuln, "exploitation_steps") or _safe_get(vuln, "exploitation") or []
+    )
     impact = _safe_get(vuln, "impact") or ""
     mitigation = _safe_get(vuln, "mitigation") or ""
 
