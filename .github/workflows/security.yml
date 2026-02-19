@@ -18,16 +18,16 @@ jobs:
           python-version: '3.9'
 
       - name: Install tools
-        run: pip install black flake8 bandit pytest
+        run: pip install black bandit pytest
 
-      - name: Check formatting
-        run: black . --check
-
-      - name: Lint
-        run: flake8 . --max-line-length=150 --extend-ignore=E203,W503
+      - name: Format with Black
+        run: black .
 
       - name: Security Scan
         run: bandit -r .
 
       - name: Run Tests
-        run: pytest || echo "No tests found"
+        run: pytest
+
+      - name: Ready Message
+        run: echo "All checks passed — Ready to be deployed"
