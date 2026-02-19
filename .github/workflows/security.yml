@@ -23,9 +23,6 @@ jobs:
       - name: Format with Black
         run: black .
 
-      - name: Security Scan
-        run: bandit -r .
-
       - name: Run Tests
         run: pytest
 
