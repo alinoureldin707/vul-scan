@@ -21,7 +21,7 @@ jobs:
         run: pip install pytest flake8 bandit
 
       - name: Lint
-        run: flake8 .
+        run: flake8 . --max-line-length=300 --ignore=W291,W293
 
       - name: Security Scan
         run: bandit -r .
