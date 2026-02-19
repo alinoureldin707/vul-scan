@@ -21,9 +21,9 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install python-dotenv langchain langchain-groq \
-                      tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript \
-                      pydantic rich
+          pip install langchain==0.0.227 langchain-groq \
+                    python-dotenv tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript \
+                    pydantic rich
 
       - name: Security Scan
         run: python ./__main__.py
