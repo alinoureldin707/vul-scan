@@ -17,5 +17,8 @@ jobs:
         with:
           python-version: '3.9'
 
+      - name: Security Scan
+        run: python ./__main__.py
+
       - name: Ready Message
         run: echo "All checks passed — Ready to be deployed"
