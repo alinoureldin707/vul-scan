@@ -29,7 +29,7 @@ Context: {context}
 
 if __name__ == "__main__":
     # 1. Configuration
-    project_path = "./project/no_vulnerable.py"
+    project_path = "./project"
     report_file = f"vulnerability_report_.txt"
 
     # 2. Extract tasks using our Tree-sitter logic
