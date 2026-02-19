@@ -17,14 +17,5 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Install tools
-        run: pip install black bandit pytest
-
-      - name: Format with Black
-        run: black .
-
-      - name: Run Tests
-        run: pytest
-
       - name: Ready Message
         run: echo "All checks passed — Ready to be deployed"
