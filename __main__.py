@@ -1,4 +1,6 @@
 
+import sys
+
 from chuncks_splitter import get_all_code_tasks
 from models import CodeChunk, OWASPFunctionReport
 from agent import agent_analyzer
@@ -35,6 +37,9 @@ if __name__ == "__main__":
 # 1. Configuration
     project_path = "./project" 
     report_file = f"vulnerability_report_.txt"
+    # --- User flag: change to True to generate report ---
+    # --- Read CLI flag ---
+    generate_report = "--report" in sys.argv
 
     # 2. Extract tasks using our Tree-sitter logic
     tasks = get_all_code_tasks(project_path)
@@ -101,14 +106,12 @@ if __name__ == "__main__":
 
         summary[file_path] = summary.get(file_path, 0) + count
 
-    # Print summary table
-    # print_summary(summary)
     print(summary)
-    # print(all_results)
-    # --- Generate a structured report from the summary ---
 
 
-# --- Generate professional DOCX report --
-    create_advanced_vuln_report(summary, all_results, "Professional_Vulnerability_Report.docx")
+    if generate_report:
+        print(f"\nGenerating professional report: Professional_Vulnerability_Report.docx")
+        create_advanced_vuln_report(summary, all_results, "Professional_Vulnerability_Report.docx")
+        print("Report generation completed.")
 
 
