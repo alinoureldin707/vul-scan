@@ -1,7 +1,11 @@
+
+import sys
+
 from chuncks_splitter import get_all_code_tasks
 from models import CodeChunk, OWASPFunctionReport
 from agent import agent_analyzer
 from printer import print_header, print_vulnerability, print_summary
+from report_generator import create_advanced_vuln_report
 import sys
 
 
@@ -31,6 +35,9 @@ if __name__ == "__main__":
     # 1. Configuration
     project_path = "./project/no_vulnerable.py"
     report_file = f"vulnerability_report_.txt"
+    # --- User flag: change to True to generate report ---
+    # --- Read CLI flag ---
+    generate_report = "--report" in sys.argv
 
     # 2. Extract tasks using our Tree-sitter logic
     tasks = get_all_code_tasks(project_path)
@@ -38,6 +45,7 @@ if __name__ == "__main__":
     print(f"Found {len(tasks)} chunks to analyze.")
 
     summary = {}
+    all_results = {}
 
     # 3. Iterate through tasks and print to console sequentially
     for i, task in enumerate(tasks):
@@ -84,16 +92,27 @@ if __name__ == "__main__":
                 vulns = structured.get("vulnerabilities", [])
             except Exception:
                 vulns = []
+        
 
         count = 0
+        if file_path not in all_results:
+            all_results[file_path] = []
         if not vulns:
             print("No OWASP Top-10 vulnerabilities found in this chunk.")
         else:
             for v in vulns:
                 print_vulnerability(v)
+                all_results[file_path].append(v)
                 count += 1
 
         summary[file_path] = summary.get(file_path, 0) + count
+
+    print(summary)
+
+    if generate_report:
+        print(f"\nGenerating professional report: Professional_Vulnerability_Report.docx")
+        create_advanced_vuln_report(summary, all_results, "Professional_Vulnerability_Report.docx")
+        print("Report generation completed.")
 
     # Print summary table
     print_summary(summary)
