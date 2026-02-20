@@ -4,6 +4,7 @@ from tree_sitter import Language, Parser
 import tree_sitter_javascript as tsjs
 import tree_sitter_typescript as tsts
 from models import CodeChunk
+from printer import print_info, print_warning, print_error
 
 
 def get_language_from_extension(file_extension):
@@ -20,38 +21,48 @@ def get_language_from_extension(file_extension):
 
 def get_all_code_tasks(input_path: str) -> list[CodeChunk]:
     """
-    Scans a directory OR a single file and returns a list of 'task' dictionaries.
+    Scans a directory OR a single file and returns a list of CodeChunk objects.
+    Splitting is done with tree-sitter (no LLM agent required).
     """
-    all_tasks = []
+    all_tasks: list[CodeChunk] = []
 
     if not os.path.exists(input_path):
-        print(f"Error: Path '{input_path}' does not exist.")
+        print_error(f"Path not found: '{input_path}'")
         return []
 
-    # 1. Determine if we are dealing with a single file or a directory
+    supported_extensions = {".py", ".js", ".jsx", ".ts", ".tsx"}
+
     if os.path.isfile(input_path):
-        # Process just this one file
-        files_to_process = [
-            (os.path.dirname(input_path), [os.path.basename(input_path)])
-        ]
+        files_to_process = [input_path]
     else:
-        # Process the directory tree as before
-        files_to_process = [(root, files) for root, _, files in os.walk(input_path)]
+        files_to_process = [
+            os.path.join(root, f)
+            for root, _, files in os.walk(input_path)
+            for f in files
+            if os.path.splitext(f)[1] in supported_extensions
+        ]
 
-    # 2. Iterate through the identified file(s)
-    for root, files in files_to_process:
-        for file in files:
-            file_lang = get_language_from_extension(os.path.splitext(file)[1])
-            if file_lang:
-                file_path = os.path.join(root, file)
+    for file_path in files_to_process:
+        file_lang = get_language_from_extension(os.path.splitext(file_path)[1])
+        if not file_lang:
+            continue
 
-                header, chunks = _parse_file_to_chunks(file_path, file_lang)
-                print(f"Parsed {len(chunks)} chunks from {file_path}")
+        header, chunks = _parse_file_to_chunks(file_path, file_lang)
 
-                for chunk in chunks:
-                    all_tasks.append(
-                        {"file": file_path, "context": header, "code_segment": chunk}
-                    )
+        if not chunks:
+            # Fallback: treat the entire file as one chunk so it still gets analysed
+            try:
+                with open(file_path, "r", encoding="utf-8") as fh:
+                    source_code = fh.read()
+                print_warning(f"No logic blocks found in {file_path} — using whole file as one chunk.")
+                all_tasks.append(CodeChunk(file=file_path, context=header, code_segment=source_code))
+            except Exception as exc:
+                print_error(f"Cannot read {file_path}: {exc}")
+            continue
+
+        print_info(f"{len(chunks)} chunk(s) extracted from {file_path}")
+        for chunk in chunks:
+            all_tasks.append(CodeChunk(file=file_path, context=header, code_segment=chunk))
 
     return all_tasks
 
