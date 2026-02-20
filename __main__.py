@@ -6,15 +6,17 @@ from models import CodeChunk, OWASPFunctionReport
 from agent import agent_analyzer
 from printer import print_header, print_vulnerability, print_summary
 from report_generator import create_advanced_vuln_report
+import sys
+
 
 def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
     """
     Takes a CodeChunk and returns an OWASPFunctionReport.
     """
     # --- Extract info from the chunk ---
-    file_path = code_chunk['file']
-    context = code_chunk['context']
-    code_segment = code_chunk['code_segment']
+    file_path = code_chunk["file"]
+    context = code_chunk["context"]
+    code_segment = code_chunk["code_segment"]
 
     # --- Build the prompt for the agent ---
     prompt = f"""Analyze the following code segment for OWASP vulnerabilities. Provide a structured report based on the OWASP Top 10.
@@ -25,17 +27,13 @@ Context: {context}
 ```
     """
     # --- Invoke the agent ---
-    report = agent_analyzer.invoke({
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    })
+    report = agent_analyzer.invoke({"messages": [{"role": "user", "content": prompt}]})
     return report
 
 
 if __name__ == "__main__":
-# 1. Configuration
-    project_path = "./project" 
+    # 1. Configuration
+    project_path = "./project/no_vulnerable.py"
     report_file = f"vulnerability_report_.txt"
     # --- User flag: change to True to generate report ---
     # --- Read CLI flag ---
@@ -80,7 +78,10 @@ if __name__ == "__main__":
                 structured = None
 
         if structured is None:
-            print("Could not parse structured response from agent. Raw output:\n", report_raw)
+            print(
+                "Could not parse structured response from agent. Raw output:\n",
+                report_raw,
+            )
             summary[file_path] = summary.get(file_path, 0)
             continue
 
@@ -108,10 +109,20 @@ if __name__ == "__main__":
 
     print(summary)
 
-
     if generate_report:
         print(f"\nGenerating professional report: Professional_Vulnerability_Report.docx")
         create_advanced_vuln_report(summary, all_results, "Professional_Vulnerability_Report.docx")
         print("Report generation completed.")
 
+    # Print summary table
+    print_summary(summary)
 
+    total_vulnerabilities = sum(summary.values())
+    if total_vulnerabilities > 0:
+        print(
+            f"\n {total_vulnerabilities} vulnerabilities detected. Blocking deployment."
+        )
+        sys.exit(1)  # makes CI fail
+    else:
+        print("\n No vulnerabilities detected. Safe to deploy.")
+        sys.exit(0)  # allow CI to pass
