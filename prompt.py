@@ -348,34 +348,3 @@ OUTPUT SCHEMA
   ]
 }
 """
-
-
-PROMPT_LOG = """
-==================================================
-PROMPT VERSION LOG
-==================================================
-
-v1 — Initial FINDER_SYSTEM_PROMPT
-  - Single agent with OWASP taxonomy and scope rules.
-  - Output: owasp_id, name, description, evidence, exploitation_steps, impact.
-  - Problem: no confidence score; no human-readable summary; high false-positive rate on ambiguous code.
-
-v2 — Added MITIGATION_SYSTEM_PROMPT (separate agent)
-  - Split finding and remediation into two agents to improve focus.
-  - Added fixed_code and mitigation fields.
-  - Added fix_line_start / fix_line_end for precise diff applicability.
-  - Problem: still no confidence score; deduplication not handled; no output files.
-
-v3 — Added confidence, risk_summary, few-shot examples, VERIFIER_SYSTEM_PROMPT, report output
-  - confidence (0–1) added to finder output; verifier adjusts it.
-  - risk_summary field: 2-3 sentence plain-language explanation for developers.
-  - Three labeled few-shot examples injected into finder prompt:
-      positive (SQL injection), positive (hardcoded secret), negative (parameterised query).
-    → Reduces false positives on safe API usage patterns.
-  - VERIFIER_SYSTEM_PROMPT: separate pass over all findings per scan;
-      drops duplicates, false positives; re-calibrates confidence.
-    → Catches cross-chunk duplicates not visible within a single chunk.
-  - Aggregation pass in __main__: deduplicates by (file, owasp_id, line_start) key.
-  - Outputs report.json (structured) and report.md (human-readable).
-  - CLI accepts repository path or file as argument.
-"""

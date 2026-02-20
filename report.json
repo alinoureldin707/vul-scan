@@ -1,114 +1,87 @@
 {
-  "generated_at": "2026-02-20T19:01:20Z",
+  "generated_at": "2026-02-20T19:54:05Z",
   "scanned_path": "D:\\CBRS-503\\project",
-  "total_files": 5,
-  "total_chunks": 7,
-  "total_findings": 5,
+  "total_files": 4,
+  "total_chunks": 4,
+  "total_findings": 2,
+  "risk_analysis": {
+    "overall_risk": "HIGH",
+    "severity_breakdown": {
+      "high": 2,
+      "medium": 0,
+      "low": 0
+    },
+    "owasp_category_breakdown": {
+      "A04:2025": 1,
+      "A05:2025": 1
+    },
+    "most_affected_files": [
+      {
+        "file": "./project\\test.js",
+        "findings": 1
+      },
+      {
+        "file": "./project\\vulnerable_app.py",
+        "findings": 1
+      }
+    ]
+  },
   "findings": [
     {
       "file": "./project\\test.js",
       "owasp_id": "A04:2025",
       "name": "Hardcoded Secret",
-      "risk_summary": "A hardcoded API key is embedded in the source code, exposing it to anyone with repository access. This allows attackers to impersonate the service or access protected resources.",
-      "description": "The API_KEY constant is assigned a literal string value that is never externalized or protected.",
+      "risk_summary": "A hardcoded API key is embedded in the source code, exposing sensitive credentials to anyone with repository access. This can lead to unauthorized API usage and potential data compromise.",
+      "description": "The API_KEY constant is assigned a literal string containing a live API key. This key is not stored securely or rotated, making it vulnerable to theft.",
       "evidence": "const API_KEY = \"sk_live_123456789\";",
       "line_start": 5,
       "line_end": 5,
       "exploitation_steps": [
-        "Step 1: Read the source code to obtain the API key.",
-        "Step 2: Use the key to authenticate to the external service.",
-        "Step 3: Perform privileged actions or access sensitive data."
+        "Read the source code to obtain the API_KEY",
+        "Use the key to authenticate to the external API and perform privileged actions",
+        "Potentially exfiltrate data or perform unauthorized operations"
       ],
-      "impact": "An attacker can use the exposed key to access the external API, potentially leading to data exfiltration, unauthorized actions, or service abuse.",
-      "confidence": 0.97,
-      "mitigation": "Replace the hardcoded API key with an environment variable to avoid exposing secrets in source code. Update the assignment to read from process.env.API_KEY and optionally add a comment indicating the change.",
+      "impact": "An attacker who gains access to the repository can use the exposed API key to access the external service, potentially leading to data exfiltration, unauthorized actions, or service abuse.",
+      "confidence": 0.99,
+      "mitigation": "Replace the hardcoded API key with an environment variable or secure vault reference. Update the code to read the key from process.env.API_KEY (or a configuration service) and remove the literal value from the source. This prevents the key from being exposed in the repository and allows rotation without code changes.",
       "fix_line_start": 5,
       "fix_line_end": 5,
-      "fixed_code": "export const test = () => {\n  // vulnerable_app\n  const sqlite3 = require(\"sqlite3\").verbose();\n  const fs = require(\"fs\");\n  const API_KEY = process.env.API_KEY; // Externalized secret\n\n  // vulnerable_app\n  function run_command(cmd) {\n    // Potential RCE vulnerability\n    return require(\"child_process\").execSync(cmd).toString();\n  }\n};"
-    },
-    {
-      "file": "./project\\test.js",
-      "owasp_id": "A05:2025",
-      "name": "Command Injection",
-      "risk_summary": "The run_command function executes arbitrary shell commands supplied by the caller without validation, enabling remote code execution.",
-      "description": "The function passes the cmd argument directly to child_process.execSync, which runs it in the system shell.",
-      "evidence": "return require(\"child_process\").execSync(cmd).toString();",
-      "line_start": 10,
-      "line_end": 10,
-      "exploitation_steps": [
-        "Step 1: Provide a malicious command string as the cmd argument.",
-        "Step 2: The function executes it via execSync.",
-        "Step 3: The attacker gains shell access or runs arbitrary code on the host."
-      ],
-      "impact": "Full remote code execution on the server, allowing data theft, system compromise, or further attacks.",
-      "confidence": 0.97,
-      "mitigation": "Replace execSync usage with execSync(cmd, {shell:false}) to prevent shell injection. This disables the shell, ensuring the command string is executed directly without shell interpretation.",
-      "fix_line_start": 10,
-      "fix_line_end": 10,
-      "fixed_code": "export const test = () => {\n  // vulnerable_app\n  const sqlite3 = require(\"sqlite3\").verbose();\n  const fs = require(\"fs\");\n  const API_KEY = \"sk_live_123456789\";\n\n  // vulnerable_app\n  function run_command(cmd) {\n    // Potential RCE vulnerability mitigated: avoid shell execution\n    return require(\"child_process\").execSync(cmd, { shell: false }).toString();\n  }\n};"
+      "fixed_code": "export const test = () => {\\n  // vulnerable_app\\n  const sqlite3 = require(\\\"sqlite3\\\").verbose();\\n  const fs = require(\\\"fs\\\");\\n  const API_KEY = process.env.API_KEY || \\\"\\\"; // Use environment variable for API key\\n\\n  // vulnerable_app\\n  function run_command(cmd) {\\n    // Potential RCE vulnerability\\n    return require(\\\"child_process\\\").execSync(cmd).toString();\\n  }\\n};",
+      "risk_analysis": {
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "risk_score": 9.9,
+        "remediation_priority": "P1 — Immediate",
+        "attack_vector": "Insecure Design / Misconfiguration"
+      }
     },
     {
       "file": "./project\\vulnerable_app.py",
       "owasp_id": "A05:2025",
       "name": "SQL Injection",
-      "risk_summary": "User-supplied credentials are concatenated into a SQL query without sanitisation, allowing attackers to inject arbitrary SQL. This can lead to authentication bypass or data exposure.",
-      "description": "The login function builds the SQL statement using an f-string that directly interpolates the username and password parameters, enabling an attacker to manipulate the query logic.",
-      "evidence": "query = f\"SELECT * FROM users WHERE username='{username}' AND password='{password}'\"",
+      "risk_summary": "User-supplied credentials are concatenated into a SQL query without sanitisation, allowing attackers to inject arbitrary SQL and bypass authentication or exfiltrate data.",
+      "description": "The login function builds a SQL statement using an f-string that directly interpolates the username and password parameters, then executes it with sqlite3. This permits an attacker to craft input that alters the query logic.",
+      "evidence": "query = f\"SELECT * FROM users WHERE username='{username}' AND password='{password}'\"\ncursor.execute(query)",
       "line_start": 2,
-      "line_end": 2,
+      "line_end": 5,
       "exploitation_steps": [
-        "Step 1: Supply a crafted username or password containing SQL syntax, e.g., \"' OR '1'='1\".",
-        "Step 2: The f-string injects this into the query, producing a statement that always evaluates to true.",
-        "Step 3: The query returns a user record, bypassing authentication or exposing data."
+        "Supply username = \"' OR '1'='1\" and any password",
+        "The query becomes SELECT * FROM users WHERE username='' OR '1'='1' AND password='...' which always evaluates to true",
+        "cursor.fetchone() returns the first user record, granting unauthorized access"
       ],
-      "impact": "An attacker can gain unauthorized access to user accounts, read or modify sensitive data, and potentially compromise the entire database.",
-      "confidence": 0.97,
-      "mitigation": "Replace the f-string with a parameterized query using placeholders and pass the user inputs as parameters to cursor.execute to prevent SQL injection.",
+      "impact": "An attacker can bypass authentication, read or modify any user data, and potentially execute further destructive SQL commands.",
+      "confidence": 0.99,
+      "mitigation": "Replace the f-string SQL construction with a parameterized query using sqlite3’s placeholder syntax to prevent SQL injection. This ensures user input is treated as data, not executable code.",
       "fix_line_start": 2,
       "fix_line_end": 5,
-      "fixed_code": "def login(username, password):\n    # Use parameterized query to prevent SQL injection\n    query = \"SELECT * FROM users WHERE username=? AND password=?\"\n    conn = sqlite3.connect(\"users.db\")\n    cursor = conn.cursor()\n    # Execute with parameters instead of string interpolation\n    cursor.execute(query, (username, password))\n    return cursor.fetchone()"
-    },
-    {
-      "file": "./project\\vulnerable_app.py",
-      "owasp_id": "A08:2025",
-      "name": "Insecure Deserialization",
-      "risk_summary": "Deserializing data with pickle.loads on untrusted input allows attackers to execute arbitrary code, leading to full compromise of the application.",
-      "description": "The deserialize function calls pickle.loads on the provided data without any validation or restriction. If the data originates from an attacker, the pickle payload can contain malicious code that will be executed during deserialization.",
-      "evidence": "return pickle.loads(data)",
-      "line_start": 3,
-      "line_end": 3,
-      "exploitation_steps": [
-        "Step 1: Attacker crafts a malicious pickle payload that includes code to be executed.",
-        "Step 2: Attacker sends this payload to the application and calls deserialize with it.",
-        "Step 3: pickle.loads executes the malicious code, giving the attacker arbitrary code execution."
-      ],
-      "impact": "Arbitrary code execution on the server, allowing the attacker to read, modify, or delete data, install malware, or take control of the system.",
-      "confidence": 0.97,
-      "mitigation": "Replace direct pickle.loads with a RestrictedUnpickler that only allows safe built-in types, preventing execution of malicious code during deserialization.",
-      "fix_line_start": 3,
-      "fix_line_end": 3,
-      "fixed_code": "def deserialize(data):\\n    import pickle\\n    import io\\n\\n    # Use a restricted unpickler to prevent arbitrary code execution\\n    class RestrictedUnpickler(pickle.Unpickler):\\n        # Whitelist of allowed classes\\n        allowed_classes = {\\n            (\"builtins\", \"list\"),\\n            (\"builtins\", \"dict\"),\\n            (\"builtins\", \"tuple\"),\\n            (\"builtins\", \"set\"),\\n            (\"builtins\", \"str\"),\\n            (\"builtins\", \"int\"),\\n            (\"builtins\", \"float\"),\\n            (\"builtins\", \"bool\"),\\n            (\"builtins\", \"NoneType\"),\\n        }\\n\\n        def find_class(self, module, name):\\n            if (module, name) in self.allowed_classes:\\n                return super().find_class(module, name)\\n            raise pickle.UnpicklingError(f\"Attempted to load disallowed class {module}.{name}\")\\n\\n    return RestrictedUnpickler(io.BytesIO(data)).load()"
-    },
-    {
-      "file": "./project\\vulnerable_app.py",
-      "owasp_id": "A04:2025",
-      "name": "Hardcoded Secret",
-      "risk_summary": "Hardcoding an API key in source code exposes it to anyone with repository access, making it trivial for attackers to impersonate the service or access protected resources.",
-      "description": "The code defines API_KEY = \"sk_live_123456789\" directly in the source file. This secret is exposed in version control and can be extracted by anyone who can read the code.",
-      "evidence": "API_KEY = \"sk_live_123456789\"",
-      "line_start": 1,
-      "line_end": 1,
-      "exploitation_steps": [
-        "Step 1: Attacker obtains the source code from the repository.",
-        "Step 2: Attacker extracts the API_KEY value.",
-        "Step 3: Attacker uses the key to authenticate to the external service, gaining unauthorized access."
-      ],
-      "impact": "Unauthorized access to the external service, potential data exfiltration, or abuse of the service.",
-      "confidence": 0.97,
-      "mitigation": "Remove the hardcoded API_KEY from the source code. Store the key in an environment variable or a secure secret manager and load it at runtime.",
-      "fix_line_start": 1,
-      "fix_line_end": 1,
-      "fixed_code": "def deserialize(data):\n    import pickle\n\n    return pickle.loads(data)"
+      "fixed_code": "def login(username, password):\n    # Use a parameterized query to avoid SQL injection\n    query = \"SELECT * FROM users WHERE username=? AND password=?\"\n    conn = sqlite3.connect(\"users.db\")\n    cursor = conn.cursor()\n    cursor.execute(query, (username, password))\n    return cursor.fetchone()",
+      "risk_analysis": {
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "risk_score": 9.9,
+        "remediation_priority": "P1 — Immediate",
+        "attack_vector": "Security Misconfiguration"
+      }
     }
   ]
 }

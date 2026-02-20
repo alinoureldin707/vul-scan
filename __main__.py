@@ -8,8 +8,8 @@ Usage:
 """
 import json
 import sys
-from collections import defaultdict
 from pathlib import Path
+from report_generator import create_advanced_vuln_report
 
 from chuncks_splitter import get_all_code_tasks
 from models import (
@@ -228,6 +228,7 @@ def _dedup(
 
 if __name__ == "__main__":
     project_path = sys.argv[1] if len(sys.argv) > 1 else "./project"
+    generate_report = "--report" in sys.argv
 
     tasks = get_all_code_tasks(project_path)
     if not tasks:
@@ -295,6 +296,16 @@ if __name__ == "__main__":
 
     # ── Terminal summary ──────────────────────────────────────────────────────
     print_summary(summary)
+
+
+    if generate_report:
+        print(f"\nGenerating professional report: Professional_Vulnerability_Report.docx")
+        # Convert list[tuple[file, vuln]] → dict[file, list[vuln]] as expected by report_generator
+        findings_by_file: dict = {}
+        for file_path, vuln in all_findings:
+            findings_by_file.setdefault(file_path, []).append(vuln)
+        create_advanced_vuln_report(summary, findings_by_file, "Professional_Vulnerability_Report.docx")
+        print("Report generation completed.")
 
     total = len(final_findings)
     if total > 0:
