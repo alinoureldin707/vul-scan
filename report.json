@@ -1,86 +1,53 @@
 {
-  "generated_at": "2026-02-20T19:54:05Z",
-  "scanned_path": "D:\\CBRS-503\\project",
-  "total_files": 4,
-  "total_chunks": 4,
-  "total_findings": 2,
+  "generated_at": "2026-02-21T17:47:21Z",
+  "scanned_path": "C:\\Users\\User\\Desktop\\CBRS503-project\\project1",
+  "total_files": 3,
+  "total_chunks": 3,
+  "total_findings": 1,
   "risk_analysis": {
     "overall_risk": "HIGH",
     "severity_breakdown": {
-      "high": 2,
+      "high": 1,
       "medium": 0,
       "low": 0
     },
     "owasp_category_breakdown": {
-      "A04:2025": 1,
-      "A05:2025": 1
+      "A02:2025": 1
     },
     "most_affected_files": [
       {
-        "file": "./project\\test.js",
-        "findings": 1
-      },
-      {
-        "file": "./project\\vulnerable_app.py",
+        "file": "./project1\\database.js",
         "findings": 1
       }
     ]
   },
   "findings": [
     {
-      "file": "./project\\test.js",
-      "owasp_id": "A04:2025",
-      "name": "Hardcoded Secret",
-      "risk_summary": "A hardcoded API key is embedded in the source code, exposing sensitive credentials to anyone with repository access. This can lead to unauthorized API usage and potential data compromise.",
-      "description": "The API_KEY constant is assigned a literal string containing a live API key. This key is not stored securely or rotated, making it vulnerable to theft.",
-      "evidence": "const API_KEY = \"sk_live_123456789\";",
-      "line_start": 5,
-      "line_end": 5,
+      "file": "./project1\\database.js",
+      "owasp_id": "A02:2025",
+      "name": "Hardcoded Credentials",
+      "risk_summary": "Hardcoded database credentials in source code expose the database to anyone who can read the code, enabling unauthorized access and potential data compromise.",
+      "description": "The code creates a MySQL connection using hardcoded host, user, password, and database values, including an empty password for the root user. This configuration allows anyone with access to the source to obtain valid credentials and connect to the database.",
+      "evidence": "const connection = mysql.createConnection({\n  host: \"localhost\",\n  user: \"root\",\n  password: \"\",\n  database: \"vulnapp\"\n});",
+      "line_start": 4,
+      "line_end": 8,
       "exploitation_steps": [
-        "Read the source code to obtain the API_KEY",
-        "Use the key to authenticate to the external API and perform privileged actions",
-        "Potentially exfiltrate data or perform unauthorized operations"
+        "Step 1: Attacker reads the source code to discover the hardcoded credentials.",
+        "Step 2: Attacker uses the credentials to establish a connection to the MySQL database.",
+        "Step 3: Attacker can read, modify, or delete data in the database."
       ],
-      "impact": "An attacker who gains access to the repository can use the exposed API key to access the external service, potentially leading to data exfiltration, unauthorized actions, or service abuse.",
+      "impact": "Unauthorized database access can lead to data theft, tampering, or destruction, compromising application integrity and confidentiality.",
       "confidence": 0.99,
-      "mitigation": "Replace the hardcoded API key with an environment variable or secure vault reference. Update the code to read the key from process.env.API_KEY (or a configuration service) and remove the literal value from the source. This prevents the key from being exposed in the repository and allows rotation without code changes.",
-      "fix_line_start": 5,
-      "fix_line_end": 5,
-      "fixed_code": "export const test = () => {\\n  // vulnerable_app\\n  const sqlite3 = require(\\\"sqlite3\\\").verbose();\\n  const fs = require(\\\"fs\\\");\\n  const API_KEY = process.env.API_KEY || \\\"\\\"; // Use environment variable for API key\\n\\n  // vulnerable_app\\n  function run_command(cmd) {\\n    // Potential RCE vulnerability\\n    return require(\\\"child_process\\\").execSync(cmd).toString();\\n  }\\n};",
+      "mitigation": "Replace hardcoded database credentials with environment variables. Store credentials in a secure .env file or secret manager and load them via process.env. Avoid committing sensitive data to source control.",
+      "fix_line_start": 4,
+      "fix_line_end": 8,
+      "fixed_code": "const mysql = require(\"mysql\");\n\n// ✅ Use environment variables for credentials\nconst connection = mysql.createConnection({\n  host: process.env.DB_HOST || \"localhost\",\n  user: process.env.DB_USER || \"root\",\n  password: process.env.DB_PASSWORD || \"\",\n  database: process.env.DB_NAME || \"vulnapp\"\n});\n\nconnection.connect();\n\nmodule.exports = connection;",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "HIGH",
         "risk_score": 9.9,
         "remediation_priority": "P1 — Immediate",
-        "attack_vector": "Insecure Design / Misconfiguration"
-      }
-    },
-    {
-      "file": "./project\\vulnerable_app.py",
-      "owasp_id": "A05:2025",
-      "name": "SQL Injection",
-      "risk_summary": "User-supplied credentials are concatenated into a SQL query without sanitisation, allowing attackers to inject arbitrary SQL and bypass authentication or exfiltrate data.",
-      "description": "The login function builds a SQL statement using an f-string that directly interpolates the username and password parameters, then executes it with sqlite3. This permits an attacker to craft input that alters the query logic.",
-      "evidence": "query = f\"SELECT * FROM users WHERE username='{username}' AND password='{password}'\"\ncursor.execute(query)",
-      "line_start": 2,
-      "line_end": 5,
-      "exploitation_steps": [
-        "Supply username = \"' OR '1'='1\" and any password",
-        "The query becomes SELECT * FROM users WHERE username='' OR '1'='1' AND password='...' which always evaluates to true",
-        "cursor.fetchone() returns the first user record, granting unauthorized access"
-      ],
-      "impact": "An attacker can bypass authentication, read or modify any user data, and potentially execute further destructive SQL commands.",
-      "confidence": 0.99,
-      "mitigation": "Replace the f-string SQL construction with a parameterized query using sqlite3’s placeholder syntax to prevent SQL injection. This ensures user input is treated as data, not executable code.",
-      "fix_line_start": 2,
-      "fix_line_end": 5,
-      "fixed_code": "def login(username, password):\n    # Use a parameterized query to avoid SQL injection\n    query = \"SELECT * FROM users WHERE username=? AND password=?\"\n    conn = sqlite3.connect(\"users.db\")\n    cursor = conn.cursor()\n    cursor.execute(query, (username, password))\n    return cursor.fetchone()",
-      "risk_analysis": {
-        "severity": "HIGH",
-        "likelihood": "HIGH",
-        "risk_score": 9.9,
-        "remediation_priority": "P1 — Immediate",
-        "attack_vector": "Security Misconfiguration"
+        "attack_vector": "Cryptographic Failure"
       }
     }
   ]
