@@ -1,0 +1,30 @@
+name: Simple CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: pip install .
+
+      - name: Security Scan
+        run: vulnerability-scan ./vul-scan/project
+
+      - name: Ready Message
+        if: success()
+        run: echo "All checks passed — Ready to be deployed"
