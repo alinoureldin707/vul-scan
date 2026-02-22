@@ -13,7 +13,10 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Validate required configuration
 if not GROQ_API_KEY:
-    print("\033[91m✖ Error: GROQ_API_KEY environment variable is not set.\033[0m")
-    print("  Please set it in your .env file or environment:")
-    print("    GROQ_API_KEY=your_api_key_here")
+    print("\033[91m✖ Error: GROQ_API_KEY is not set.\033[0m")
+    print("  Provide it in one of three ways:")
+    print("    1. CLI flag:      vulnerability-scan ./project --api-key gsk_...")
+    print("    2. .env file:     GROQ_API_KEY=gsk_...  (in your project folder)")
+    print("    3. Env variable:  set GROQ_API_KEY=gsk_...  (Windows)")
+    print("                      export GROQ_API_KEY=gsk_...  (Linux/macOS)")
     sys.exit(1)

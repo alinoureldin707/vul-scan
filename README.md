@@ -161,13 +161,3 @@ Outputs are written to the current working directory:
     ├── test.js
     └── test.ts
 ```
-
----
-
-## Supported Languages
-
-| Language   | Extensions    |
-| ---------- | ------------- |
-| Python     | `.py`         |
-| JavaScript | `.js`, `.jsx` |
-| TypeScript | `.ts`, `.tsx` |

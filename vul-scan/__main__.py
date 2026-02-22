@@ -23,6 +23,15 @@ def _inject_api_key_from_argv() -> None:
 _inject_api_key_from_argv()
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ── Allow running as a script AND as a package ────────────────────────────────
+# `python __main__.py` sets __package__ to None, breaking relative imports.
+# Re-anchor to the parent directory so relative imports resolve correctly.
+if __package__ is None or __package__ == "":
+    from pathlib import Path as _Path
+    sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+    __package__ = "vul_scan"
+# ─────────────────────────────────────────────────────────────────────────────
+
 import json
 from pathlib import Path
 from .report_generator import create_advanced_vuln_report
