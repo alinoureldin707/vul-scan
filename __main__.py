@@ -227,7 +227,7 @@ def _dedup(
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    project_path = sys.argv[1] if len(sys.argv) > 1 else "./project"
+    project_path = sys.argv[1] if len(sys.argv) > 1 else "./project1"
     generate_report = "--report" in sys.argv
 
     tasks = get_all_code_tasks(project_path)

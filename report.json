@@ -1,53 +1,86 @@
 {
-  "generated_at": "2026-02-21T17:47:21Z",
+  "generated_at": "2026-02-22T11:55:10Z",
   "scanned_path": "C:\\Users\\User\\Desktop\\CBRS503-project\\project1",
   "total_files": 3,
   "total_chunks": 3,
-  "total_findings": 1,
+  "total_findings": 2,
   "risk_analysis": {
     "overall_risk": "HIGH",
     "severity_breakdown": {
-      "high": 1,
+      "high": 2,
       "medium": 0,
       "low": 0
     },
     "owasp_category_breakdown": {
-      "A02:2025": 1
+      "A05:2025": 1,
+      "A04:2025": 1
     },
     "most_affected_files": [
       {
-        "file": "./project1\\database.js",
+        "file": "./project1\\app.js",
+        "findings": 1
+      },
+      {
+        "file": "./project1\\server.js",
         "findings": 1
       }
     ]
   },
   "findings": [
     {
-      "file": "./project1\\database.js",
-      "owasp_id": "A02:2025",
-      "name": "Hardcoded Credentials",
-      "risk_summary": "Hardcoded database credentials in source code expose the database to anyone who can read the code, enabling unauthorized access and potential data compromise.",
-      "description": "The code creates a MySQL connection using hardcoded host, user, password, and database values, including an empty password for the root user. This configuration allows anyone with access to the source to obtain valid credentials and connect to the database.",
-      "evidence": "const connection = mysql.createConnection({\n  host: \"localhost\",\n  user: \"root\",\n  password: \"\",\n  database: \"vulnapp\"\n});",
-      "line_start": 4,
-      "line_end": 8,
+      "file": "./project1\\app.js",
+      "owasp_id": "A05:2025",
+      "name": "Code Injection via eval",
+      "risk_summary": "Using eval on user-supplied input allows an attacker to execute arbitrary JavaScript on the server. This can lead to full compromise of the application, including data exfiltration, privilege escalation, or denial of service.",
+      "description": "The endpoint /calculate accepts a 'formula' field from the request body and passes it directly to JavaScript's eval without validation or sanitisation. eval executes the string as code in the server's context, giving the attacker full control over the runtime environment.",
+      "evidence": "const result = eval(formula);",
+      "line_start": 10,
+      "line_end": 10,
       "exploitation_steps": [
-        "Step 1: Attacker reads the source code to discover the hardcoded credentials.",
-        "Step 2: Attacker uses the credentials to establish a connection to the MySQL database.",
-        "Step 3: Attacker can read, modify, or delete data in the database."
+        "Send a POST request to /calculate with JSON body {\"formula\": \"process.exit(0);\"}",
+        "The server executes process.exit(0) via eval, terminating the process",
+        "The attacker can inject any JavaScript code, including reading files, spawning processes, or modifying server state"
       ],
-      "impact": "Unauthorized database access can lead to data theft, tampering, or destruction, compromising application integrity and confidentiality.",
+      "impact": "Arbitrary code execution on the server, enabling data theft, privilege escalation, or service disruption.",
       "confidence": 0.99,
-      "mitigation": "Replace hardcoded database credentials with environment variables. Store credentials in a secure .env file or secret manager and load them via process.env. Avoid committing sensitive data to source control.",
-      "fix_line_start": 4,
-      "fix_line_end": 8,
-      "fixed_code": "const mysql = require(\"mysql\");\n\n// ✅ Use environment variables for credentials\nconst connection = mysql.createConnection({\n  host: process.env.DB_HOST || \"localhost\",\n  user: process.env.DB_USER || \"root\",\n  password: process.env.DB_PASSWORD || \"\",\n  database: process.env.DB_NAME || \"vulnapp\"\n});\n\nconnection.connect();\n\nmodule.exports = connection;",
+      "mitigation": "Validate and sanitize the 'formula' input to allow only numeric and arithmetic characters before evaluating. Reject any input that contains disallowed characters and return a 400 error. This prevents arbitrary code execution via eval.",
+      "fix_line_start": 10,
+      "fix_line_end": 12,
+      "fixed_code": "import * as express from \"express\";\n\nconst app = express();\napp.use(express.json());\n\napp.post(\"/calculate\", (req, res) => {\n    const formula = req.body.formula;\n\n    // ✅ Safe evaluation: allow only numbers and arithmetic operators\n    let result;\n    try {\n        const safe = formula.replace(/[\\^\\d+\\-*/().\\s]/g, '');\n        if (!/^[0-9+\\-*/().\\s]+$/.test(safe)) throw new Error('Invalid formula');\n        result = eval(safe);\n    } catch (e) {\n        return res.status(400).send({ error: e.message });\n    }\n\n    res.send({ result });\n});\n\napp.post(\"/deserialize\", (req, res) => {\n    const data = req.body.data;\n\n    // ❌ Insecure deserialization\n    const obj = JSON.parse(data);\n\n    res.send(obj);\n});\n\napp.listen(4000, () => {\n    console.log(\"App running on port 4000\");\n});",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "HIGH",
         "risk_score": 9.9,
         "remediation_priority": "P1 — Immediate",
-        "attack_vector": "Cryptographic Failure"
+        "attack_vector": "Security Misconfiguration"
+      }
+    },
+    {
+      "file": "./project1\\server.js",
+      "owasp_id": "A04:2025",
+      "name": "Weak Hash Algorithm",
+      "risk_summary": "Using MD5 for password hashing is insecure because MD5 is vulnerable to collision and brute‑force attacks, allowing attackers to recover plaintext passwords from stored hashes.",
+      "description": "The function hashPassword hashes passwords using crypto.createHash(\"md5\"), which is a weak algorithm unsuitable for password storage.",
+      "evidence": "return crypto.createHash(\"md5\").update(password).digest(\"hex\");",
+      "line_start": 1,
+      "line_end": 3,
+      "exploitation_steps": [
+        "Step 1: Attacker obtains the stored MD5 hash of a password.",
+        "Step 2: Attacker uses precomputed rainbow tables or brute‑force to reverse the hash.",
+        "Step 3: Attacker recovers the plaintext password and gains unauthorized access."
+      ],
+      "impact": "Compromised user accounts and potential data breach due to easy password recovery.",
+      "confidence": 0.99,
+      "mitigation": "Replace the insecure MD5 hash with a strong, adaptive key derivation function such as PBKDF2 (or bcrypt/argon2). Generate a random salt for each password, derive a key with a high iteration count, and store both the salt and hash together (e.g., as \"salt:hash\"). This prevents pre‑computed rainbow table attacks and makes brute‑force attempts computationally expensive.",
+      "fix_line_start": 1,
+      "fix_line_end": 3,
+      "fixed_code": "function hashPassword(password) {\n    // Generate a random 16‑byte salt\n    const salt = crypto.randomBytes(16);\n    // Derive a 64‑byte key using PBKDF2 with 100,000 iterations and SHA‑512\n    const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512');\n    // Return the salt and hash concatenated with a separator for storage\n    return `${salt.toString('hex')}:${hash.toString('hex')}`;\n}",
+      "risk_analysis": {
+        "severity": "HIGH",
+        "likelihood": "HIGH",
+        "risk_score": 9.9,
+        "remediation_priority": "P1 — Immediate",
+        "attack_vector": "Insecure Design / Misconfiguration"
       }
     }
   ]
