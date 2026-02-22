@@ -8,12 +8,10 @@ Usage:
 """
 import json
 import sys
-import time
 from pathlib import Path
 from report_generator import create_advanced_vuln_report
 
-from chuncks_splitter import get_all_code_tasks
-from config import MAX_RETRIES
+from chunks_splitter import get_all_code_tasks
 from models import (
     CodeChunk,
     FinalFinding,
@@ -35,6 +33,7 @@ from printer import (
     print_warning,
 )
 from report_writer import write_reports
+from utils import invoke_with_retry
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,24 +54,15 @@ def _normalize(raw, model_cls):
     return None
 
 
-def _invoke_with_retry(agent, prompt: str, model_cls, context: str):
+def _invoke_agent(agent, prompt: str, model_cls, context: str):
     """Invoke an agent with retry logic and return normalized response."""
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            raw = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
-            result = _normalize(raw, model_cls)
-            if result is not None:
-                return result
-            if attempt < MAX_RETRIES:
-                print_warning(f"Attempt {attempt}/{MAX_RETRIES}: Empty response for {context}, retrying...")
-                time.sleep(0.5 * attempt)
-        except Exception as exc:
-            if attempt < MAX_RETRIES:
-                print_warning(f"Attempt {attempt}/{MAX_RETRIES} failed for {context}: {exc}")
-                time.sleep(0.5 * attempt)
-            else:
-                print_error(f"All {MAX_RETRIES} attempts failed for {context}: {exc}")
-    return None
+    def invoke():
+        return agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+    
+    def normalize(raw):
+        return _normalize(raw, model_cls)
+    
+    return invoke_with_retry(invoke, normalize, context)
 
 
 # ── Stage 1 + 2: Finder → Mitigator per chunk ────────────────────────────────
@@ -101,7 +91,7 @@ def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
         f"{code_segment}"
     )
     
-    finding_report = _invoke_with_retry(
+    finding_report = _invoke_agent(
         agent_finder, finder_prompt, OWASPFindingReport, f"finder:{file_path}"
     )
 
@@ -125,7 +115,7 @@ def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
             f"CODE:\n{code_for_mitigation}"
         )
         
-        mitigation = _invoke_with_retry(
+        mitigation = _invoke_agent(
             agent_mitigator, mitigator_prompt, VulnerabilityMitigation, f"mitigator:{finding.owasp_id}"
         )
 
@@ -184,7 +174,7 @@ def _verify_findings(
         f"Findings (JSON):\n{json.dumps(payload, indent=2)}"
     )
 
-    verification = _invoke_with_retry(
+    verification = _invoke_agent(
         agent_verifier, verifier_prompt, VerificationReport, "verifier"
     )
 
@@ -288,7 +278,7 @@ if __name__ == "__main__":
                 print_success(f"  No vulnerabilities found in chunk {chunk_idx}.")
             else:
                 for v in vulns:
-                    print_vulnerability(v, task.line_start, task.line_end)
+                    print_vulnerability(v, task.line_start, task.line_end, file_path)
                     all_findings.append((file_path, v, task.line_start, task.line_end))
 
             summary[file_path] = summary.get(file_path, 0) + len(vulns)
@@ -329,9 +319,9 @@ if __name__ == "__main__":
 
     if "--report" in sys.argv:
         print(f"\nGenerating professional report: Professional_Vulnerability_Report.docx")
-        # Convert list[tuple[file, vuln]] → dict[file, list[vuln]] as expected by report_generator
+        # Convert list[tuple[file, vuln, start, end]] → dict[file, list[vuln]] as expected by report_generator
         findings_by_file: dict = {}
-        for file_path, vuln in all_findings:
+        for file_path, vuln, _, _ in all_findings:
             findings_by_file.setdefault(file_path, []).append(vuln)
         create_advanced_vuln_report(summary, findings_by_file, "Professional_Vulnerability_Report.docx")
         print("Report generation completed.")

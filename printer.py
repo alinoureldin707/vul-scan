@@ -11,6 +11,42 @@ except Exception:
     RICH_AVAILABLE = False
 
 
+# ── Language detection ─────────────────────────
+
+_LANG_MAP = {
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".jsx": "jsx",
+    ".tsx": "tsx",
+    ".java": "java",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".cs": "csharp",
+    ".go": "go",
+    ".rb": "ruby",
+    ".php": "php",
+    ".rs": "rust",
+    ".swift": "swift",
+    ".kt": "kotlin",
+    ".sql": "sql",
+    ".sh": "bash",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".json": "json",
+    ".xml": "xml",
+    ".html": "html",
+    ".css": "css",
+}
+
+
+def _detect_language(file_path: str) -> str:
+    """Detect programming language from file extension."""
+    import os
+    ext = os.path.splitext(file_path)[1].lower()
+    return _LANG_MAP.get(ext, "text")
+
+
 def _safe_get(v, key):
     if isinstance(v, dict):
         return v.get(key)
@@ -66,7 +102,7 @@ def print_header(index: int, total: int, file_path: str):
 
 # ── Vulnerability card ─────────────────────
 
-def print_vulnerability(vuln, chunk_line_start: int = 0, chunk_line_end: int = 0):
+def print_vulnerability(vuln, chunk_line_start: int = 0, chunk_line_end: int = 0, file_path: str = ""):
     owasp_id       = _safe_get(vuln, "owasp_id") or ""
     name           = _safe_get(vuln, "name") or ""
     description    = _safe_get(vuln, "description") or ""
@@ -76,6 +112,7 @@ def print_vulnerability(vuln, chunk_line_start: int = 0, chunk_line_end: int = 0
     mitigation     = _safe_get(vuln, "mitigation") or ""
     fixed_code     = _safe_get(vuln, "fixed_code") or ""
     line_info      = f"Chunk Lines {chunk_line_start}-{chunk_line_end}" if chunk_line_end else f"Chunk Line {chunk_line_start}"
+    lang           = _detect_language(file_path) if file_path else "python"
 
     if RICH_AVAILABLE:
         title = Text()
@@ -94,7 +131,7 @@ def print_vulnerability(vuln, chunk_line_start: int = 0, chunk_line_end: int = 0
         console.print(f"  [bold]Mitigation[/bold]   {mitigation}")
         if fixed_code:
             syntax = Syntax(
-                fixed_code, "python",
+                fixed_code, lang,
                 theme="monokai",
                 line_numbers=False,
                 background_color="default",

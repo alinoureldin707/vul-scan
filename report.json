@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-02-22T16:38:49Z",
+  "generated_at": "2026-02-22T16:47:18Z",
   "scanned_path": "D:\\CBRS-503\\project2",
   "total_files": 3,
   "total_chunks": 5,
@@ -41,15 +41,15 @@
         "Obtain the secret key"
       ],
       "impact": "Unauthorized access to sensitive data.",
-      "confidence": 0.92,
+      "confidence": 0.95,
       "mitigation": "Load secret from environment variable instead of hardcoding.",
       "fixed_code": "const secretKey = process.env.SECRET_KEY; // Fixed: use env var",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "MEDIUM",
-        "risk_score": 5.5,
+        "risk_score": 5.7,
         "remediation_priority": "P2 — High Priority",
-        "attack_vector": "Insecure Design / Misconfiguration"
+        "attack_vector": "Cryptographic Failure"
       }
     },
     {
@@ -66,13 +66,13 @@
         "Obtain the user passwords"
       ],
       "impact": "Unauthorized access to user accounts.",
-      "confidence": 0.92,
-      "mitigation": "Load passwords from a secure storage and hash them before comparison. Use a secure method like bcrypt to hash and verify passwords.",
-      "fixed_code": "const bcrypt = require('bcrypt');\nconst hashedPassword = bcrypt.hashSync('admin123', 10);\nmodule.exports = {\n  secretKey: process.env.SECRET_KEY,\n  users: [\n    { username: \"admin\", password: hashedPassword, role: \"ADMIN\" }, // Fixed: use secure hash\n    // ... load other users from secure storage\n  ],\n};",
+      "confidence": 0.95,
+      "mitigation": "Load passwords from a secure storage and hash them before comparison. Use environment variables or a secrets manager to store sensitive data.",
+      "fixed_code": "const bcrypt = require('bcrypt');\nconst hashedPassword = bcrypt.hashSync(process.env.ADMIN_PASSWORD, 10);\nmodule.exports = {\n  secretKey: process.env.SECRET_KEY,\n  users: [\n    { username: \"admin\", password: hashedPassword, role: \"ADMIN\" },\n    { username: \"user\", password: bcrypt.hashSync(process.env.USER_PASSWORD, 10), role: \"USER\" },\n  ],\n}; // Fixed: use env vars and hash passwords",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "MEDIUM",
-        "risk_score": 5.5,
+        "risk_score": 5.7,
         "remediation_priority": "P2 — High Priority",
         "attack_vector": "Authentication Failure"
       }
@@ -91,15 +91,15 @@
         "Extract the secretKey"
       ],
       "impact": "Unauthorized access to sensitive data.",
-      "confidence": 0.92,
-      "mitigation": "Load secret from environment variable instead of hardcoding.",
-      "fixed_code": "const secretKey = process.env.SECRET_KEY; // Fixed: use env var",
+      "confidence": 0.95,
+      "mitigation": "(unavailable)",
+      "fixed_code": "(unavailable)",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "MEDIUM",
-        "risk_score": 5.5,
+        "risk_score": 5.7,
         "remediation_priority": "P2 — High Priority",
-        "attack_vector": "Insecure Design / Misconfiguration"
+        "attack_vector": "Cryptographic Failure"
       }
     },
     {
@@ -116,13 +116,13 @@
         "Extract the passwords"
       ],
       "impact": "Unauthorized access to user accounts.",
-      "confidence": 0.92,
-      "mitigation": "Hash password with bcrypt before storage and compare hashed password with hashed input.",
-      "fixed_code": "const bcrypt = require('bcrypt');\nconst hashedPassword = bcrypt.hashSync(password, 10);\nconst user = users.find((u) => u.username === username && bcrypt.compareSync(password, u.password)); // Fixed: secure hash and compare",
+      "confidence": 0.95,
+      "mitigation": "(unavailable)",
+      "fixed_code": "(unavailable)",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "MEDIUM",
-        "risk_score": 5.5,
+        "risk_score": 5.7,
         "remediation_priority": "P2 — High Priority",
         "attack_vector": "Authentication Failure"
       }

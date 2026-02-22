@@ -1,9 +1,8 @@
 import os
-import time
 from models import CodeChunk, CodeChunkList
 from agent import agent_splitter
 from printer import print_info, print_warning, print_error
-from config import MAX_RETRIES
+from utils import invoke_with_retry
 
 # Binary file signatures to skip (magic bytes)
 _BINARY_SIGNATURES = (
@@ -16,7 +15,25 @@ _BINARY_SIGNATURES = (
     b"%PDF",         # PDF
 )
 
-SKIP_DIRS = frozenset({"__pycache__", ".git", ".github", "node_modules", ".venv", "venv", "dist", "build"})
+SKIP_DIRS = frozenset({
+    "__pycache__", ".git", ".github", "node_modules",
+    ".venv", "venv", "dist", "build", ".idea", ".vscode",
+    "coverage", ".nyc_output", "__snapshots__"
+})
+
+# Supported source code extensions
+SOURCE_EXTENSIONS = frozenset({
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", ".hpp",
+    ".cs", ".go", ".rb", ".php", ".rs", ".swift", ".kt", ".kts", ".scala",
+    ".sql", ".sh", ".bash", ".ps1", ".yaml", ".yml", ".json", ".xml",
+    ".html", ".vue", ".svelte", ".astro", ".lua", ".pl", ".pm", ".r",
+})
+
+
+def _is_supported_source(file_path: str) -> bool:
+    """Check if file extension is in the supported source code list."""
+    ext = os.path.splitext(file_path)[1].lower()
+    return ext in SOURCE_EXTENSIONS
 
 
 def _is_binary(file_path: str) -> bool:
@@ -66,33 +83,19 @@ def _split_file_with_agent(file_path: str, source_code: str) -> list[CodeChunk]:
     """Use the splitter agent to divide source code into CodeChunk objects with retry logic."""
     prompt = f"File path: {file_path}\n\nSource code:\n```\n{source_code}\n```"
     
-    last_error = None
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            raw = agent_splitter.invoke({"messages": [{"role": "user", "content": prompt}]})
-            result = _parse_agent_response(raw)
-            
-            if result and result.chunks:
-                # Fix line numbers by finding actual positions in source
-                return _fix_chunk_line_numbers(result.chunks, source_code, file_path)
-            
-            # Empty result - try again
-            if attempt < MAX_RETRIES:
-                print_warning(f"Attempt {attempt}/{MAX_RETRIES}: Empty response for {file_path}, retrying...")
-                time.sleep(0.5 * attempt)  # Exponential backoff
-                
-        except Exception as exc:
-            last_error = exc
-            if attempt < MAX_RETRIES:
-                print_warning(f"Attempt {attempt}/{MAX_RETRIES} failed for {file_path}: {exc}")
-                time.sleep(0.5 * attempt)
+    def invoke():
+        return agent_splitter.invoke({"messages": [{"role": "user", "content": prompt}]})
     
-    # All retries exhausted - use fallback
-    if last_error:
-        print_error(f"Splitter failed for {file_path} after {MAX_RETRIES} attempts: {last_error}")
-    else:
-        print_warning(f"Splitter returned no chunks for {file_path} — using whole file as fallback.")
+    def normalize(raw) -> CodeChunkList | None:
+        result = _parse_agent_response(raw)
+        return result if result and result.chunks else None
     
+    result = invoke_with_retry(invoke, normalize, f"splitter:{file_path}")
+    
+    if result:
+        return _fix_chunk_line_numbers(result.chunks, source_code, file_path)
+    
+    print_warning(f"Splitter returned no chunks for {file_path} — using whole file as fallback.")
     return _create_fallback_chunk(file_path, source_code)
 
 
@@ -157,6 +160,10 @@ def get_all_code_tasks(input_path: str) -> list[CodeChunk]:
     all_tasks: list[CodeChunk] = []
     
     for file_path in files_to_process:
+        # Skip unsupported file types
+        if not _is_supported_source(file_path):
+            continue
+        
         if _is_binary(file_path):
             print_warning(f"Skipping binary file: {file_path}")
             continue
@@ -164,6 +171,9 @@ def get_all_code_tasks(input_path: str) -> list[CodeChunk]:
         try:
             with open(file_path, "r", encoding="utf-8") as fh:
                 source_code = fh.read()
+        except UnicodeDecodeError:
+            print_warning(f"Skipping non-UTF-8 file: {file_path}")
+            continue
         except Exception as exc:
             print_error(f"Cannot read {file_path}: {exc}")
             continue

@@ -2,11 +2,47 @@
 Writes the final scan results to report.json and report.md.
 """
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from collections import defaultdict
 
 from models import FinalReport, FinalFinding
+
+
+# ── Language detection ───────────────────────────────────────────────────────
+
+_LANG_MAP = {
+    ".py": "python",
+    ".js": "javascript",
+    ".ts": "typescript",
+    ".jsx": "jsx",
+    ".tsx": "tsx",
+    ".java": "java",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".cs": "csharp",
+    ".go": "go",
+    ".rb": "ruby",
+    ".php": "php",
+    ".rs": "rust",
+    ".swift": "swift",
+    ".kt": "kotlin",
+    ".sql": "sql",
+    ".sh": "bash",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".json": "json",
+    ".xml": "xml",
+    ".html": "html",
+    ".css": "css",
+}
+
+
+def _detect_language(file_path: str) -> str:
+    """Detect programming language from file extension for code fences."""
+    ext = os.path.splitext(file_path)[1].lower()
+    return _LANG_MAP.get(ext, "text")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -54,18 +90,18 @@ def _finding_risk_analysis(f: FinalFinding) -> dict:
     else:
         priority = "P4 — Low Priority"
 
-    # Attack vector — inferred from OWASP ID
+    # Attack vector — inferred from OWASP ID (2025 categories)
     vector_map = {
         "A01": "Broken Access Control",
-        "A02": "Cryptographic Failure",
-        "A03": "Injection",
-        "A04": "Insecure Design / Misconfiguration",
-        "A05": "Security Misconfiguration",
-        "A06": "Outdated Components",
+        "A02": "Security Misconfiguration",
+        "A03": "Supply Chain Attack",
+        "A04": "Cryptographic Failure",
+        "A05": "Injection",
+        "A06": "Insecure Design",
         "A07": "Authentication Failure",
         "A08": "Integrity Failure",
         "A09": "Logging Failure",
-        "A10": "Server-Side Request Forgery",
+        "A10": "Exception Handling",
     }
     prefix = f.owasp_id[:3]  # e.g. "A03"
     attack_vector = vector_map.get(prefix, "Unknown")
@@ -224,6 +260,7 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
 
     finding_num = 0
     for file_path, findings in by_file.items():
+        lang = _detect_language(file_path)
         lines += [f"### 📄 `{file_path}`", ""]
         for f in findings:
             finding_num += 1
@@ -252,7 +289,7 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
                 f"**Description:** {f.description}",
                 "",
                 f"**Evidence:**",
-                "```",
+                f"```{lang}",
                 f.evidence,
                 "```",
                 "",
@@ -270,7 +307,7 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
                 f"**Fix Recommendation:** {f.mitigation}",
                 "",
                 "**Fixed Code:**",
-                "```python",
+                f"```{lang}",
                 f.fixed_code,
                 "```",
                 "",
