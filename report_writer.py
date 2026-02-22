@@ -19,12 +19,6 @@ def _confidence_badge(c: float) -> str:
     return "🟡 LOW"
 
 
-def _fmt_range(start: int, end: int) -> str:
-    if not start and not end:
-        return "unknown"
-    if start == end or not end:
-        return f"line {start}"
-    return f"lines {start}–{end}"
 
 def _finding_risk_analysis(f: FinalFinding) -> dict:
     """Compute a risk analysis block for a single finding."""
@@ -211,14 +205,13 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
     lines += [
         "## Summary",
         "",
-        "| # | File | OWASP ID | Name | Lines | Confidence |",
-        "|---|------|----------|------|-------|------------|",
+        "| # | File | OWASP ID | Name | Confidence |",
+        "|---|------|----------|------|------------|",
     ]
     for i, f in enumerate(report.findings, 1):
-        loc = _fmt_range(f.line_start, f.line_end)
         badge = _confidence_badge(f.confidence)
         lines.append(
-            f"| {i} | `{f.file}` | {f.owasp_id} | {f.name} | {loc} | {badge} ({f.confidence:.2f}) |"
+            f"| {i} | `{f.file}` | {f.owasp_id} | {f.name} | {badge} ({f.confidence:.2f}) |"
         )
     lines.append("")
 
@@ -233,8 +226,6 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
         lines += [f"### 📄 `{file_path}`", ""]
         for f in findings:
             finding_num += 1
-            loc      = _fmt_range(f.line_start, f.line_end)
-            fix_loc  = _fmt_range(f.fix_line_start, f.fix_line_end)
             badge    = _confidence_badge(f.confidence)
             fra      = _finding_risk_analysis(f)
             sev_icon = {"HIGH": "\U0001f534", "MEDIUM": "\U0001f7e0", "LOW": "\U0001f7e1"}.get(fra["severity"], "")
@@ -243,7 +234,6 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
             lines += [
                 f"#### [{finding_num}] {f.owasp_id} \u2014 {f.name}",
                 "",
-                f"**Location:** {loc}  ",
                 f"**Confidence:** {badge} ({f.confidence:.2f})  ",
                 "",
                 f"> {f.risk_summary}",
@@ -276,7 +266,7 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
             lines += [
                 f"**Impact:** {f.impact}",
                 "",
-                f"**Fix Recommendation ({fix_loc}):** {f.mitigation}",
+                f"**Fix Recommendation:** {f.mitigation}",
                 "",
                 "**Fixed Code:**",
                 "```python",

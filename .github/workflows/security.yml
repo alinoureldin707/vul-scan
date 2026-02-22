@@ -2,9 +2,9 @@ name: Simple CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   ci:
@@ -17,17 +17,16 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: "3.9"
 
       - name: Install dependencies
         run: |
           pip install --upgrade --force-reinstall langchain==0.0.227 langchain-groq \
-                    python-dotenv tree-sitter tree-sitter-python tree-sitter-javascript tree-sitter-typescript \
-                    pydantic rich
+                    python-dotenv pydantic rich
 
       - name: Security Scan
         run: python ./__main__.py
 
       - name: Ready Message
-        if: success()  # Only runs if Security Scan passed
+        if: success() # Only runs if Security Scan passed
         run: echo "All checks passed — Ready to be deployed"

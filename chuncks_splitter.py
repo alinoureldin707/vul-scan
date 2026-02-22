@@ -1,138 +1,112 @@
 import os
-import tree_sitter_python as tspython
-from tree_sitter import Language, Parser
-import tree_sitter_javascript as tsjs
-import tree_sitter_typescript as tsts
-from models import CodeChunk
+from models import CodeChunk, CodeChunkList
+from agent import agent_splitter
 from printer import print_info, print_warning, print_error
 
+# Binary file signatures to skip (magic bytes)
+_BINARY_SIGNATURES = [
+    b"\x7fELF",   # ELF
+    b"MZ",        # PE/DOS
+    b"PK\x03\x04", # ZIP
+    b"\x89PNG",   # PNG
+    b"\xff\xd8\xff", # JPEG
+    b"\x47\x49\x46", # GIF
+    b"\x25PDF",   # PDF
+]
 
-def get_language_from_extension(file_extension):
-    """Returns the programming language based on file extension."""
-    if file_extension == ".py":
-        return "python"
-    elif file_extension in [".js", ".jsx"]:
-        return "javascript"
-    elif file_extension in [".ts", ".tsx"]:
-        return "typescript"
-    else:
-        return None
+SKIP_DIRS = {"__pycache__", ".git", ".github", "node_modules", ".venv", "venv", "dist", "build"}
+
+
+def _is_binary(file_path: str) -> bool:
+    """Quick binary detection: check magic bytes then null-byte scan."""
+    try:
+        with open(file_path, "rb") as fh:
+            header = fh.read(8)
+        if any(header.startswith(sig) for sig in _BINARY_SIGNATURES):
+            return True
+        # Null-byte heuristic
+        with open(file_path, "rb") as fh:
+            chunk = fh.read(1024)
+        return b"\x00" in chunk
+    except Exception:
+        return True
 
 
 def get_all_code_tasks(input_path: str) -> list[CodeChunk]:
     """
     Scans a directory OR a single file and returns a list of CodeChunk objects.
-    Splitting is done with tree-sitter (no LLM agent required).
+    Accepts any readable text file — language detection is handled by the splitter agent.
+    Splitting is performed by the splitter agent (LLM-based).
     """
-    all_tasks: list[CodeChunk] = []
-
     if not os.path.exists(input_path):
         print_error(f"Path not found: '{input_path}'")
         return []
-
-    supported_extensions = {".py", ".js", ".jsx", ".ts", ".tsx"}
 
     if os.path.isfile(input_path):
         files_to_process = [input_path]
     else:
         files_to_process = [
             os.path.join(root, f)
-            for root, _, files in os.walk(input_path)
+            for root, dirs, files in os.walk(input_path)
             for f in files
-            if os.path.splitext(f)[1] in supported_extensions
+            if not any(skip in root.split(os.sep) for skip in SKIP_DIRS)
         ]
+        # Sort for deterministic ordering
+        files_to_process.sort()
 
+    all_tasks: list[CodeChunk] = []
     for file_path in files_to_process:
-        file_lang = get_language_from_extension(os.path.splitext(file_path)[1])
-        if not file_lang:
+        if _is_binary(file_path):
+            print_warning(f"Skipping binary file: {file_path}")
             continue
-
-        header, chunks = _parse_file_to_chunks(file_path, file_lang)
-
-        if not chunks:
-            # Fallback: treat the entire file as one chunk so it still gets analysed
-            try:
-                with open(file_path, "r", encoding="utf-8") as fh:
-                    source_code = fh.read()
-                print_warning(f"No logic blocks found in {file_path} — using whole file as one chunk.")
-                all_tasks.append(CodeChunk(file=file_path, context=header, code_segment=source_code))
-            except Exception as exc:
-                print_error(f"Cannot read {file_path}: {exc}")
-            continue
-
-        print_info(f"{len(chunks)} chunk(s) extracted from {file_path}")
-        for chunk in chunks:
-            all_tasks.append(CodeChunk(file=file_path, context=header, code_segment=chunk))
+        chunks = _split_file_with_agent(file_path)
+        if chunks:
+            print_info(f"{len(chunks)} chunk(s) extracted from {file_path}")
+            all_tasks.extend(chunks)
 
     return all_tasks
 
 
-def _parse_file_to_chunks(file_path, language):
-    # --- Setup ---
-    if language == "python":
-        lang_obj = Language(tspython.language())
-        logic_types = ["function_definition", "class_definition"]
-        context_types = ["import_statement", "import_from_statement"]
-    elif language == "javascript":
-        lang_obj = Language(tsjs.language())
-        # JS uses 'declaration' instead of 'definition'
-        logic_types = [
-            "function_declaration",
-            "class_declaration",
-            "method_definition",
-            "export_statement",
-        ]
-        context_types = [
-            "import_statement",
-        ]
-    elif language == "typescript":
-        lang_obj = Language(tsts.language_typescript())
-        logic_types = [
-            "function_declaration",
-            "class_declaration",
-            "method_definition",
-            "export_statement",
-        ]
-        context_types = [
-            "import_statement",
-        ]
+def _split_file_with_agent(file_path: str) -> list[CodeChunk]:
+    """Reads a source file and uses the splitter agent to divide it into CodeChunk objects."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as fh:
+            source_code = fh.read()
+    except Exception as exc:
+        print_error(f"Cannot read {file_path}: {exc}")
+        return []
 
-    parser = Parser(lang_obj)
+    if not source_code.strip():
+        print_warning(f"Skipping empty file: {file_path}")
+        return []
+
+    prompt = (
+        f"File path: {file_path}\n\n"
+        f"Source code:\n```\n{source_code}\n```"
+    )
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            source_code = f.read()
-    except Exception as e:
-        return f"# Error reading {file_path}: {e}", []
+        raw = agent_splitter.invoke({"messages": [{"role": "user", "content": prompt}]})
+    except Exception as exc:
+        print_error(f"Splitter agent failed for {file_path}: {exc}")
+        return []
 
-    source_bytes = bytes(source_code, "utf8")
-    tree = parser.parse(source_bytes)
+    # Normalise the response into a CodeChunkList
+    result: CodeChunkList | None = None
+    if isinstance(raw, CodeChunkList):
+        result = raw
+    elif isinstance(raw, dict) and "structured_response" in raw:
+        result = raw["structured_response"]
+    elif hasattr(raw, "structured_response"):
+        result = raw.structured_response
+    elif isinstance(raw, dict):
+        try:
+            result = CodeChunkList.model_validate(raw)
+        except Exception:
+            pass
 
-    header_lines = [f"# File Path: {file_path}"]
-    chunks = []
+    if result is None or not result.chunks:
+        print_warning(f"Splitter returned no chunks for {file_path} — using whole file as one chunk.")
+        return [CodeChunk(file=file_path, context="", code_segment=source_code)]
 
-    for child in tree.root_node.children:
-        # 1. Capture Comments (Works for both)
-        if child.type == "comment":
-            header_lines.append(child.text.decode("utf8"))
-
-        # 2. Capture Context (Imports)
-        elif child.type in context_types:
-            header_lines.append(child.text.decode("utf8"))
-
-        # 3. Capture Assignments
-        elif child.type in [
-            "expression_statement",
-            "lexical_declaration",
-            "variable_declaration",
-        ]:
-            # Python assignments are usually inside expression_statements
-            # JS 'const x = 1' is a lexical_declaration
-            if b"=" in child.text:
-                header_lines.append(child.text.decode("utf8"))
-
-        # 4. Capture Logic Blocks (Functions and Classes)
-        elif child.type in logic_types:
-            chunks.append(child.text.decode("utf8"))
-
-    return "\n".join(header_lines), chunks
+    return result.chunks

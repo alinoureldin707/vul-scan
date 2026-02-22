@@ -11,8 +11,6 @@ class OWASPVulnerabilityFinding(BaseModel):
     risk_summary: str = Field(description="2-3 sentence plain-language summary of the risk")
     description: str = Field(description="Why this code is insecure")
     evidence: str = Field(description="Exact lines or constructs causing the issue")
-    line_start: int = Field(default=0, description="First 1-based line number of the vulnerable code")
-    line_end: int = Field(default=0, description="Last 1-based line number of the vulnerable code")
     exploitation_steps: list[str] = Field(description="Ordered steps an attacker would follow")
     impact: str = Field(description="Concrete real-world damage this enables")
     confidence: float = Field(default=0.9, ge=0.0, le=1.0, description="Confidence score 0.0–1.0")
@@ -32,8 +30,6 @@ class VulnerabilityMitigation(BaseModel):
     """Actionable mitigation for a single vulnerability."""
 
     mitigation: str = Field(description="Clear, code-level recommendation to fix the vulnerability")
-    fix_line_start: int = Field(default=0, description="First 1-based line number where the fix should be applied")
-    fix_line_end: int = Field(default=0, description="Last 1-based line number where the fix should be applied")
     fixed_code: str = Field(description="A complete, corrected version of the vulnerable code segment")
 
 
@@ -64,14 +60,10 @@ class OWASPVulnerabilityActionable(BaseModel):
     risk_summary: str = ""
     description: str
     evidence: str
-    line_start: int = 0
-    line_end: int = 0
     exploitation_steps: list[str]
     impact: str
     confidence: float = 0.9
     mitigation: str
-    fix_line_start: int = 0
-    fix_line_end: int = 0
     fixed_code: str
 
 
@@ -94,14 +86,10 @@ class FinalFinding(BaseModel):
     risk_summary: str
     description: str
     evidence: str
-    line_start: int = 0
-    line_end: int = 0
     exploitation_steps: list[str]
     impact: str
     confidence: float = 0.9
     mitigation: str
-    fix_line_start: int = 0
-    fix_line_end: int = 0
     fixed_code: str
 
 
@@ -123,6 +111,8 @@ class CodeChunk(BaseModel):
     file: str = Field(description="The file path of the code chunk")
     context: str = Field(description="Contextual information about the code chunk (e.g., imports, surrounding code)")
     code_segment: str = Field(description="The actual code segment to analyze")
+    line_start: int = Field(default=1, description="1-based line number of the first line of this chunk in the original file")
+    line_end: int = Field(default=0, description="1-based line number of the last line of this chunk in the original file")
 
 
 class CodeChunkList(BaseModel):

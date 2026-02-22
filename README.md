@@ -1,6 +1,6 @@
 # OWASP Security Scanner
 
-A multi-agent static analysis pipeline that scans Python, JavaScript, and TypeScript source files for OWASP Top-10 vulnerabilities. It produces a structured `report.json` and a human-readable `report.md`.
+A multi-agent static analysis pipeline that scans source files **in any programming language** for OWASP Top-10 vulnerabilities. It produces a structured `report.json` and a human-readable `report.md`.
 
 ---
 
@@ -10,7 +10,7 @@ A multi-agent static analysis pipeline that scans Python, JavaScript, and TypeSc
 Source files
     │
     ▼
-[tree-sitter]  ── splits each file into logical chunks (functions / classes)
+[agent_splitter]  ── LLM splits each file into logical chunks (functions / classes / routes)
     │
     ▼
 [agent_finder]  ── identifies OWASP Top-10 vulnerabilities per chunk
@@ -147,7 +147,7 @@ Outputs are written to the current working directory:
 .
 ├── __main__.py          # Orchestration entry point
 ├── agent.py             # LLM agent definitions (finder, mitigator, verifier)
-├── chuncks_splitter.py  # tree-sitter file → CodeChunk splitting
+├── chuncks_splitter.py  # agent_splitter (LLM) file → CodeChunk splitting
 ├── config.py            # Model name, temperature, API key loading
 ├── models.py            # Pydantic data models for all pipeline stages
 ├── printer.py           # Rich terminal output helpers
