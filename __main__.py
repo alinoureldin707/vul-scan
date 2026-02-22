@@ -8,10 +8,12 @@ Usage:
 """
 import json
 import sys
+import time
 from pathlib import Path
 from report_generator import create_advanced_vuln_report
 
 from chuncks_splitter import get_all_code_tasks
+from config import MAX_RETRIES
 from models import (
     CodeChunk,
     FinalFinding,
@@ -53,6 +55,26 @@ def _normalize(raw, model_cls):
     return None
 
 
+def _invoke_with_retry(agent, prompt: str, model_cls, context: str):
+    """Invoke an agent with retry logic and return normalized response."""
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            raw = agent.invoke({"messages": [{"role": "user", "content": prompt}]})
+            result = _normalize(raw, model_cls)
+            if result is not None:
+                return result
+            if attempt < MAX_RETRIES:
+                print_warning(f"Attempt {attempt}/{MAX_RETRIES}: Empty response for {context}, retrying...")
+                time.sleep(0.5 * attempt)
+        except Exception as exc:
+            if attempt < MAX_RETRIES:
+                print_warning(f"Attempt {attempt}/{MAX_RETRIES} failed for {context}: {exc}")
+                time.sleep(0.5 * attempt)
+            else:
+                print_error(f"All {MAX_RETRIES} attempts failed for {context}: {exc}")
+    return None
+
+
 # ── Stage 1 + 2: Finder → Mitigator per chunk ────────────────────────────────
 
 def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
@@ -65,21 +87,26 @@ def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
     file_path    = code_chunk.file
     context      = code_chunk.context
     code_segment = code_chunk.code_segment
-    line_start   = code_chunk.line_start
-    line_end     = code_chunk.line_end
+    chunk_line_start = code_chunk.line_start
+    chunk_line_end   = code_chunk.line_end
 
     # ── Stage 1: Find vulnerabilities ────────────────────────────────────────
-    line_range = f"lines {line_start}–{line_end}" if line_end else f"line {line_start}"
     finder_prompt = (
-        f"File: {file_path}  (chunk: {line_range})\n"
-        f"Context:\n{context}\n\n"
-        f"Code segment:\n```\n{code_segment}\n```"
+        f"=== ANALYSIS TARGET ===\n"
+        f"File: {file_path}\n"
+        f"Chunk: lines {chunk_line_start}–{chunk_line_end}\n\n"
+        f"=== CONTEXT (imports, constants, config) ===\n"
+        f"{context}\n\n"
+        f"=== CODE TO ANALYZE ===\n"
+        f"{code_segment}"
     )
-    raw_findings = agent_finder.invoke({"messages": [{"role": "user", "content": finder_prompt}]})
-    finding_report: OWASPFindingReport | None = _normalize(raw_findings, OWASPFindingReport)
+    
+    finding_report = _invoke_with_retry(
+        agent_finder, finder_prompt, OWASPFindingReport, f"finder:{file_path}"
+    )
 
     if finding_report is None:
-        print_warning(f"Finder returned an unparseable response for {file_path}.")
+        print_warning(f"Finder returned no parseable response for {file_path}.")
         return OWASPFunctionReport(vulnerabilities=[])
 
     findings = finding_report.vulnerabilities or []
@@ -89,21 +116,21 @@ def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
     # ── Stage 2: Enrich each finding with mitigation + fixed code ────────────
     actionable: list[OWASPVulnerabilityActionable] = []
     for finding in findings:
+        # Truncate code to avoid overwhelming the mitigator
+        code_for_mitigation = code_segment[:2000] if len(code_segment) > 2000 else code_segment
         mitigator_prompt = (
-            f"Vulnerability finding:\n"
-            f"  OWASP ID: {finding.owasp_id}\n"
-            f"  Name: {finding.name}\n"
-            f"  Description: {finding.description}\n"
-            f"  Evidence: {finding.evidence}\n"
-            f"  Exploitation steps: {finding.exploitation_steps}\n"
-            f"  Impact: {finding.impact}\n\n"
-            f"Original vulnerable code segment:\n```\n{code_segment}\n```"
+            f"VULNERABILITY: {finding.owasp_id} - {finding.name}\n"
+            f"EVIDENCE: {finding.evidence}\n"
+            f"DESCRIPTION: {finding.description}\n\n"
+            f"CODE:\n{code_for_mitigation}"
         )
-        raw_mitigation = agent_mitigator.invoke({"messages": [{"role": "user", "content": mitigator_prompt}]})
-        mitigation: VulnerabilityMitigation | None = _normalize(raw_mitigation, VulnerabilityMitigation)
+        
+        mitigation = _invoke_with_retry(
+            agent_mitigator, mitigator_prompt, VulnerabilityMitigation, f"mitigator:{finding.owasp_id}"
+        )
 
         if mitigation is None:
-            print_warning(f"Mitigator returned an unparseable response for {finding.owasp_id} — skipping.")
+            print_warning(f"Mitigator returned no parseable response for {finding.owasp_id} — using placeholder.")
             mit_text, fixed_code = "(unavailable)", "(unavailable)"
         else:
             mit_text   = mitigation.mitigation
@@ -128,8 +155,8 @@ def analyze_code_chunk(code_chunk: CodeChunk) -> OWASPFunctionReport:
 # ── Stage 3: Verification pass ────────────────────────────────────────────────
 
 def _verify_findings(
-    all_findings: list[tuple[str, OWASPVulnerabilityActionable]]
-) -> list[tuple[str, OWASPVulnerabilityActionable]]:
+    all_findings: list[tuple[str, OWASPVulnerabilityActionable, int, int]]
+) -> list[tuple[str, OWASPVulnerabilityActionable, int, int]]:
     """
     Submit all findings to agent_verifier.  Returns only confirmed findings
     with adjusted confidence values.
@@ -142,12 +169,13 @@ def _verify_findings(
         {
             "index": i,
             "file": file_path,
+            "chunk_lines": f"{chunk_start}-{chunk_end}",
             **vuln.model_dump(
                 include={"owasp_id", "name", "risk_summary", "description",
                          "evidence", "exploitation_steps", "impact", "confidence"}
             ),
         }
-        for i, (file_path, vuln) in enumerate(all_findings)
+        for i, (file_path, vuln, chunk_start, chunk_end) in enumerate(all_findings)
     ]
 
     verifier_prompt = (
@@ -156,25 +184,26 @@ def _verify_findings(
         f"Findings (JSON):\n{json.dumps(payload, indent=2)}"
     )
 
-    raw_verified = agent_verifier.invoke({"messages": [{"role": "user", "content": verifier_prompt}]})
-    verification: VerificationReport | None = _normalize(raw_verified, VerificationReport)
+    verification = _invoke_with_retry(
+        agent_verifier, verifier_prompt, VerificationReport, "verifier"
+    )
 
     if verification is None:
-        print_warning("Verifier returned an unparseable response — keeping all findings as-is.")
+        print_warning("Verifier returned no parseable response — keeping all findings as-is.")
         return all_findings
 
-    kept: list[tuple[str, OWASPVulnerabilityActionable]] = []
+    kept: list[tuple[str, OWASPVulnerabilityActionable, int, int]] = []
     decision_map = {d.index: d for d in verification.decisions}
 
-    for i, (file_path, vuln) in enumerate(all_findings):
+    for i, (file_path, vuln, chunk_start, chunk_end) in enumerate(all_findings):
         decision = decision_map.get(i)
         if decision is None:
             # No decision → assume keep with original confidence
-            kept.append((file_path, vuln))
+            kept.append((file_path, vuln, chunk_start, chunk_end))
         elif decision.keep:
             # Apply adjusted confidence
             adjusted = vuln.model_copy(update={"confidence": decision.adjusted_confidence})
-            kept.append((file_path, adjusted))
+            kept.append((file_path, adjusted, chunk_start, chunk_end))
         else:
             print_info(f"Verifier dropped [{i}] {vuln.owasp_id} in {file_path}: {decision.reason}")
 
@@ -184,22 +213,24 @@ def _verify_findings(
 # ── Aggregation / deduplication ───────────────────────────────────────────────
 
 def _dedup(
-    verified: list[tuple[str, OWASPVulnerabilityActionable]]
+    verified: list[tuple[str, OWASPVulnerabilityActionable, int, int]]
 ) -> list[FinalFinding]:
     """
     Deduplicate by (file, owasp_id, evidence) — keep the entry with the
     highest confidence score.  Returns a flat list of FinalFinding objects.
     """
-    best: dict[tuple[str, str, str], tuple[str, OWASPVulnerabilityActionable]] = {}
+    best: dict[tuple[str, str, str], tuple[str, OWASPVulnerabilityActionable, int, int]] = {}
 
-    for file_path, vuln in verified:
+    for file_path, vuln, chunk_start, chunk_end in verified:
         key = (file_path, vuln.owasp_id, vuln.evidence)
         if key not in best or vuln.confidence > best[key][1].confidence:
-            best[key] = (file_path, vuln)
+            best[key] = (file_path, vuln, chunk_start, chunk_end)
 
     return [
         FinalFinding(
             file              = file_path,
+            chunk_line_start  = chunk_start,
+            chunk_line_end    = chunk_end,
             owasp_id          = v.owasp_id,
             name              = v.name,
             risk_summary      = v.risk_summary,
@@ -211,7 +242,7 @@ def _dedup(
             mitigation        = v.mitigation,
             fixed_code        = v.fixed_code,
         )
-        for file_path, v in best.values()
+        for file_path, v, chunk_start, chunk_end in best.values()
     ]
 
 
@@ -235,7 +266,7 @@ if __name__ == "__main__":
         chunks_by_file.setdefault(task.file, []).append(task)
 
     # ── Stages 1 + 2: finder → mitigator (file → chunk) ──────────────────────
-    all_findings: list[tuple[str, OWASPVulnerabilityActionable]] = []
+    all_findings: list[tuple[str, OWASPVulnerabilityActionable, int, int]] = []
     summary: dict[str, int] = {}
 
     for file_num, (file_path, file_chunks) in enumerate(chunks_by_file.items(), 1):
@@ -257,8 +288,8 @@ if __name__ == "__main__":
                 print_success(f"  No vulnerabilities found in chunk {chunk_idx}.")
             else:
                 for v in vulns:
-                    print_vulnerability(v)
-                    all_findings.append((file_path, v))
+                    print_vulnerability(v, task.line_start, task.line_end)
+                    all_findings.append((file_path, v, task.line_start, task.line_end))
 
             summary[file_path] = summary.get(file_path, 0) + len(vulns)
 

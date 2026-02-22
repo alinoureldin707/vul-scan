@@ -205,13 +205,14 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
     lines += [
         "## Summary",
         "",
-        "| # | File | OWASP ID | Name | Confidence |",
-        "|---|------|----------|------|------------|",
+        "| # | File | Chunk Lines | OWASP ID | Name | Confidence |",
+        "|---|------|-------------|----------|------|------------|",
     ]
     for i, f in enumerate(report.findings, 1):
         badge = _confidence_badge(f.confidence)
+        line_info = f"{f.chunk_line_start}-{f.chunk_line_end}" if f.chunk_line_end else str(f.chunk_line_start)
         lines.append(
-            f"| {i} | `{f.file}` | {f.owasp_id} | {f.name} | {badge} ({f.confidence:.2f}) |"
+            f"| {i} | `{f.file}` | {line_info} | {f.owasp_id} | {f.name} | {badge} ({f.confidence:.2f}) |"
         )
     lines.append("")
 
@@ -232,7 +233,7 @@ def _render_markdown(report: FinalReport, generated_at: str) -> str:
             like_icon= {"HIGH": "\U0001f534", "MEDIUM": "\U0001f7e0", "LOW": "\U0001f7e1"}.get(fra["likelihood"], "")
 
             lines += [
-                f"#### [{finding_num}] {f.owasp_id} \u2014 {f.name}",
+                f"#### [{finding_num}] {f.owasp_id} — {f.name}  (Chunk Lines {f.chunk_line_start}-{f.chunk_line_end})",
                 "",
                 f"**Confidence:** {badge} ({f.confidence:.2f})  ",
                 "",

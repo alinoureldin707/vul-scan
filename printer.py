@@ -66,7 +66,7 @@ def print_header(index: int, total: int, file_path: str):
 
 # ── Vulnerability card ─────────────────────
 
-def print_vulnerability(vuln):
+def print_vulnerability(vuln, chunk_line_start: int = 0, chunk_line_end: int = 0):
     owasp_id       = _safe_get(vuln, "owasp_id") or ""
     name           = _safe_get(vuln, "name") or ""
     description    = _safe_get(vuln, "description") or ""
@@ -75,12 +75,14 @@ def print_vulnerability(vuln):
     impact         = _safe_get(vuln, "impact") or ""
     mitigation     = _safe_get(vuln, "mitigation") or ""
     fixed_code     = _safe_get(vuln, "fixed_code") or ""
+    line_info      = f"Chunk Lines {chunk_line_start}-{chunk_line_end}" if chunk_line_end else f"Chunk Line {chunk_line_start}"
 
     if RICH_AVAILABLE:
         title = Text()
         title.append(owasp_id, style="bold white")
         title.append("  —  ", style="dim")
         title.append(name, style="bold red")
+        title.append(f"  [{line_info}]", style="cyan")
         console.print(Panel(title, border_style="red", padding=(0, 1)))
         console.print(f"  [bold]Description[/bold]  {description}")
         console.print(f"  [bold]Evidence[/bold]     {evidence}")
@@ -106,7 +108,7 @@ def print_vulnerability(vuln):
         console.print()
     else:
         print(f"\n{'='*72}")
-        print(f"{owasp_id}  —  {name}")
+        print(f"{owasp_id}  —  {name}  [{line_info}]")
         print(f"{'='*72}")
         print(f"Description : {description}")
         print(f"Evidence    : {evidence}")

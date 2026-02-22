@@ -1,49 +1,130 @@
 {
-  "generated_at": "2026-02-22T15:04:33Z",
+  "generated_at": "2026-02-22T16:38:49Z",
   "scanned_path": "D:\\CBRS-503\\project2",
-  "total_files": 2,
-  "total_chunks": 3,
-  "total_findings": 1,
+  "total_files": 3,
+  "total_chunks": 5,
+  "total_findings": 4,
   "risk_analysis": {
-    "overall_risk": "HIGH",
+    "overall_risk": "CRITICAL",
     "severity_breakdown": {
-      "high": 1,
+      "high": 4,
       "medium": 0,
       "low": 0
     },
     "owasp_category_breakdown": {
-      "A04:2025": 1
+      "A04:2025": 2,
+      "A07:2025": 2
     },
     "most_affected_files": [
       {
-        "file": ".\\\\project2\\\\authConfig.js",
-        "findings": 1
+        "file": ".\\project2\\authConfig.js",
+        "findings": 2
+      },
+      {
+        "file": ".\\project2\\authService.js",
+        "findings": 2
       }
     ]
   },
   "findings": [
     {
-      "file": ".\\\\project2\\\\authConfig.js",
+      "file": ".\\project2\\authConfig.js",
+      "chunk_line_start": 2,
+      "chunk_line_end": 8,
       "owasp_id": "A04:2025",
-      "name": "Hardcoded Cryptographic Secret",
-      "risk_summary": "The configuration file contains a hardcoded secret key, exposing it to anyone with repository access. This allows attackers to forge authentication tokens or decrypt data, leading to privilege escalation and data compromise.",
-      "description": "The secretKey value \"simple_secret_key\" is stored directly in source code, providing a static cryptographic secret that can be read by anyone who can view the file. No environment variable or secure vault is used, making the key vulnerable to disclosure and misuse.",
+      "name": "Hardcoded Secrets",
+      "risk_summary": "Hardcoded secret key enables unauthorized access.",
+      "description": "The secret key is hardcoded in the authConfig.js file.",
       "evidence": "secretKey: \"simple_secret_key\"",
       "exploitation_steps": [
-        "Read the source file to obtain the secret key.",
-        "Use the key to sign JWTs or other tokens that the application accepts.",
-        "Authenticate as an arbitrary user, including privileged roles, bypassing proper authorization."
+        "Access the authConfig.js file",
+        "Obtain the secret key"
       ],
-      "impact": "An attacker can impersonate any user, including administrators, gain unauthorized access to protected resources, and potentially modify or exfiltrate sensitive data.",
-      "confidence": 0.99,
-      "mitigation": "Replace the hardcoded secret key with an environment variable. Update the code to read the key from process.env.SECRET_KEY and remove the literal value. Ensure the environment variable is set in deployment and not exposed in source control.",
-      "fixed_code": "module.exports={secretKey:process.env.SECRET_KEY, // Use environment variable instead of hardcoded key\nusers:[{username:\"admin\",password:\"admin123\",role:\"ADMIN\"},{username:\"user\",password:\"user123\",role:\"USER\"}]};",
+      "impact": "Unauthorized access to sensitive data.",
+      "confidence": 0.92,
+      "mitigation": "Load secret from environment variable instead of hardcoding.",
+      "fixed_code": "const secretKey = process.env.SECRET_KEY; // Fixed: use env var",
       "risk_analysis": {
         "severity": "HIGH",
-        "likelihood": "HIGH",
-        "risk_score": 9.9,
-        "remediation_priority": "P1 — Immediate",
+        "likelihood": "MEDIUM",
+        "risk_score": 5.5,
+        "remediation_priority": "P2 — High Priority",
         "attack_vector": "Insecure Design / Misconfiguration"
+      }
+    },
+    {
+      "file": ".\\project2\\authConfig.js",
+      "chunk_line_start": 2,
+      "chunk_line_end": 8,
+      "owasp_id": "A07:2025",
+      "name": "Weak Password Handling",
+      "risk_summary": "Hardcoded user passwords enable unauthorized access.",
+      "description": "The user passwords are hardcoded in the authConfig.js file.",
+      "evidence": "password: \"admin123\"",
+      "exploitation_steps": [
+        "Access the authConfig.js file",
+        "Obtain the user passwords"
+      ],
+      "impact": "Unauthorized access to user accounts.",
+      "confidence": 0.92,
+      "mitigation": "Load passwords from a secure storage and hash them before comparison. Use a secure method like bcrypt to hash and verify passwords.",
+      "fixed_code": "const bcrypt = require('bcrypt');\nconst hashedPassword = bcrypt.hashSync('admin123', 10);\nmodule.exports = {\n  secretKey: process.env.SECRET_KEY,\n  users: [\n    { username: \"admin\", password: hashedPassword, role: \"ADMIN\" }, // Fixed: use secure hash\n    // ... load other users from secure storage\n  ],\n};",
+      "risk_analysis": {
+        "severity": "HIGH",
+        "likelihood": "MEDIUM",
+        "risk_score": 5.5,
+        "remediation_priority": "P2 — High Priority",
+        "attack_vector": "Authentication Failure"
+      }
+    },
+    {
+      "file": ".\\project2\\authService.js",
+      "chunk_line_start": 4,
+      "chunk_line_end": 20,
+      "owasp_id": "A04:2025",
+      "name": "Hardcoded Secret",
+      "risk_summary": "Hardcoded secret key enables unauthorized access.",
+      "description": "The secretKey is hardcoded in the authConfig file.",
+      "evidence": "const { users, secretKey } = require(\"../config/authConfig\");",
+      "exploitation_steps": [
+        "Access the authConfig file",
+        "Extract the secretKey"
+      ],
+      "impact": "Unauthorized access to sensitive data.",
+      "confidence": 0.92,
+      "mitigation": "Load secret from environment variable instead of hardcoding.",
+      "fixed_code": "const secretKey = process.env.SECRET_KEY; // Fixed: use env var",
+      "risk_analysis": {
+        "severity": "HIGH",
+        "likelihood": "MEDIUM",
+        "risk_score": 5.5,
+        "remediation_priority": "P2 — High Priority",
+        "attack_vector": "Insecure Design / Misconfiguration"
+      }
+    },
+    {
+      "file": ".\\project2\\authService.js",
+      "chunk_line_start": 4,
+      "chunk_line_end": 20,
+      "owasp_id": "A07:2025",
+      "name": "Weak Password Handling",
+      "risk_summary": "Passwords are stored in plaintext.",
+      "description": "The passwords are stored in plaintext in the users array.",
+      "evidence": "u.password === password",
+      "exploitation_steps": [
+        "Access the users array",
+        "Extract the passwords"
+      ],
+      "impact": "Unauthorized access to user accounts.",
+      "confidence": 0.92,
+      "mitigation": "Hash password with bcrypt before storage and compare hashed password with hashed input.",
+      "fixed_code": "const bcrypt = require('bcrypt');\nconst hashedPassword = bcrypt.hashSync(password, 10);\nconst user = users.find((u) => u.username === username && bcrypt.compareSync(password, u.password)); // Fixed: secure hash and compare",
+      "risk_analysis": {
+        "severity": "HIGH",
+        "likelihood": "MEDIUM",
+        "risk_score": 5.5,
+        "remediation_priority": "P2 — High Priority",
+        "attack_vector": "Authentication Failure"
       }
     }
   ]

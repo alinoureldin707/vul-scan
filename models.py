@@ -81,6 +81,8 @@ class FinalFinding(BaseModel):
     """A single verified, deduplicated finding with full file context."""
 
     file: str
+    chunk_line_start: int = Field(default=1, description="1-based start line of the analyzed chunk")
+    chunk_line_end: int = Field(default=0, description="1-based end line of the analyzed chunk")
     owasp_id: str
     name: str
     risk_summary: str
@@ -109,10 +111,10 @@ class CodeChunk(BaseModel):
     """Represents a chunk of code to be analyzed."""
 
     file: str = Field(description="The file path of the code chunk")
-    context: str = Field(description="Contextual information about the code chunk (e.g., imports, surrounding code)")
+    context: str = Field(description="Rich context: language, imports, constants, config values")
     code_segment: str = Field(description="The actual code segment to analyze")
-    line_start: int = Field(default=1, description="1-based line number of the first line of this chunk in the original file")
-    line_end: int = Field(default=0, description="1-based line number of the last line of this chunk in the original file")
+    line_start: int = Field(default=1, description="1-based line number of the first line")
+    line_end: int = Field(default=0, description="1-based line number of the last line")
 
 
 class CodeChunkList(BaseModel):
