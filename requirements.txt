@@ -1,7 +1,0 @@
-langchain
-langchain-groq
-pydantic
-python-dotenv
-rich
-python-docx
-matplotlib
