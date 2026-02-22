@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vulnerability-scan"
-version = "0.2.0"
+version = "0.3.0"
 description = "AI-powered multi-agent OWASP vulnerability scanner using LangChain and Groq"
 readme = "vul-scan/README.md"
 requires-python = ">=3.11"
