@@ -1,8 +1,5 @@
 from docx import Document
 from docx.shared import Inches, Pt
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
 import matplotlib.pyplot as plt
 from datetime import datetime
 from collections import Counter

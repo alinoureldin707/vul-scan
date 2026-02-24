@@ -1,8 +1,8 @@
 # OWASP Security Scan Report
 
-**Generated:** 2026-02-24T17:32:47Z  
-**Scanned path:** `D:\CBRS-503\vul-scan\project2`  
-**Files scanned:** 2  
+**Generated:** 2026-02-24T18:19:29Z  
+**Scanned path:** `D:\CBRS-503\test\project`  
+**Files scanned:** 3  
 **Chunks analysed:** 5  
 **Total findings:** 2  
 
@@ -28,19 +28,19 @@
 
 | File | Findings |
 |------|----------|
-| `.\project2\controller.js` | 1 |
-| `.\\project2\\service.js` | 1 |
+| `.\project\controller.js` | 1 |
+| `.\project\service.js` | 1 |
 
 ## Summary
 
 | # | File | Chunk Lines | OWASP ID | Name | Confidence |
 |---|------|-------------|----------|------|------------|
-| 1 | `.\project2\controller.js` | 5-16 | A05:2025 | SQL Injection | 🔴 HIGH (0.92) |
-| 2 | `.\\project2\\service.js` | 3-13 | A05:2025 | Command Injection | 🔴 HIGH (0.90) |
+| 1 | `.\project\controller.js` | 5-16 | A05:2025 | SQL Injection | 🔴 HIGH (0.92) |
+| 2 | `.\project\service.js` | 3-13 | A05:2025 | Command Injection | 🔴 HIGH (0.95) |
 
 ## Findings
 
-### 📄 `.\project2\controller.js`
+### 📄 `.\project\controller.js`
 
 #### [1] A05:2025 — SQL Injection  (Chunk Lines 5-16)
 
@@ -76,18 +76,18 @@ const query = `SELECT * FROM users WHERE username = '${username}'`;
 
 **Fixed Code:**
 ```javascript
-const query = `SELECT * FROM users WHERE username = ?`; db.query(query, [username], (err, results) => { // Fixed: parameterized query })
+const query = `SELECT * FROM users WHERE username = ?`; db.query(query, [username], (err, results) => { ... }); // Fixed: parameterized query
 ```
 
 ---
 
-### 📄 `.\\project2\\service.js`
+### 📄 `.\project\service.js`
 
 #### [2] A05:2025 — Command Injection  (Chunk Lines 3-13)
 
-**Confidence:** 🔴 HIGH (0.90)  
+**Confidence:** 🔴 HIGH (0.95)  
 
-> User input concatenated into command enables code execution.
+> User input concatenated into command enables arbitrary command execution.
 
 **Risk Analysis**
 
@@ -95,7 +95,7 @@ const query = `SELECT * FROM users WHERE username = ?`; db.query(query, [usernam
 |-----------|-------|
 | Severity | 🔴 HIGH |
 | Likelihood | 🔴 HIGH |
-| Risk Score | **9.0 / 10** |
+| Risk Score | **9.5 / 10** |
 | Remediation Priority | P1 — Immediate |
 | Attack Vector | Injection |
 
@@ -109,19 +109,18 @@ const command = `cat reports/${filename}`;
 **Exploitation Steps:**
 1. Supply filename = '../etc/passwd'
 1. Command returns sensitive system file
-1. Information disclosure
+1. Arbitrary file read
 
-**Impact:** Arbitrary file read, potential code execution.
+**Impact:** Sensitive data exposure, potential code execution.
 
-**Fix Recommendation:** Use a child process exec function with separate arguments to prevent command injection.
+**Fix Recommendation:** Use a child process exec function that accepts an array of command arguments to prevent command injection.
 
 **Fixed Code:**
 ```javascript
 const childProcess = require('child_process');
-const command = 'cat';
-const args = ['reports/' + filename];
-childProcess.execFile(command, args, (error, stdout, stderr) => {
-  // Fixed: use execFile with separate args
+const command = ['cat', `reports/${filename}`];
+childProcess.execFile(command[0], command.slice(1), (error, stdout, stderr) => {
+  // Fixed: use execFile with an array of arguments
   if (error) {
     console.error(`Error: ${error.message}`);
     return;

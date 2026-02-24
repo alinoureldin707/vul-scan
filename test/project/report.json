@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-02-24T17:32:47Z",
-  "scanned_path": "D:\\CBRS-503\\vul-scan\\project2",
-  "total_files": 2,
+  "generated_at": "2026-02-24T18:19:29Z",
+  "scanned_path": "D:\\CBRS-503\\test\\project",
+  "total_files": 3,
   "total_chunks": 5,
   "total_findings": 2,
   "risk_analysis": {
@@ -16,18 +16,18 @@
     },
     "most_affected_files": [
       {
-        "file": ".\\project2\\controller.js",
+        "file": ".\\project\\controller.js",
         "findings": 1
       },
       {
-        "file": ".\\\\project2\\\\service.js",
+        "file": ".\\project\\service.js",
         "findings": 1
       }
     ]
   },
   "findings": [
     {
-      "file": ".\\project2\\controller.js",
+      "file": ".\\project\\controller.js",
       "chunk_line_start": 5,
       "chunk_line_end": 16,
       "owasp_id": "A05:2025",
@@ -43,7 +43,7 @@
       "impact": "Full database access, data breach.",
       "confidence": 0.92,
       "mitigation": "Use parameterized queries to prevent SQL injection.",
-      "fixed_code": "const query = `SELECT * FROM users WHERE username = ?`; db.query(query, [username], (err, results) => { // Fixed: parameterized query })",
+      "fixed_code": "const query = `SELECT * FROM users WHERE username = ?`; db.query(query, [username], (err, results) => { ... }); // Fixed: parameterized query",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "HIGH",
@@ -53,27 +53,27 @@
       }
     },
     {
-      "file": ".\\\\project2\\\\service.js",
+      "file": ".\\project\\service.js",
       "chunk_line_start": 3,
       "chunk_line_end": 13,
       "owasp_id": "A05:2025",
       "name": "Command Injection",
-      "risk_summary": "User input concatenated into command enables code execution.",
+      "risk_summary": "User input concatenated into command enables arbitrary command execution.",
       "description": "The filename parameter is concatenated into the command string without sanitization.",
       "evidence": "const command = `cat reports/${filename}`;",
       "exploitation_steps": [
         "Supply filename = '../etc/passwd'",
         "Command returns sensitive system file",
-        "Information disclosure"
+        "Arbitrary file read"
       ],
-      "impact": "Arbitrary file read, potential code execution.",
-      "confidence": 0.9,
-      "mitigation": "Use a child process exec function with separate arguments to prevent command injection.",
-      "fixed_code": "const childProcess = require('child_process');\nconst command = 'cat';\nconst args = ['reports/' + filename];\nchildProcess.execFile(command, args, (error, stdout, stderr) => {\n  // Fixed: use execFile with separate args\n  if (error) {\n    console.error(`Error: ${error.message}`);\n    return;\n  }\n  console.log(`Report output:\\n${stdout}`);\n});",
+      "impact": "Sensitive data exposure, potential code execution.",
+      "confidence": 0.95,
+      "mitigation": "Use a child process exec function that accepts an array of command arguments to prevent command injection.",
+      "fixed_code": "const childProcess = require('child_process');\nconst command = ['cat', `reports/${filename}`];\nchildProcess.execFile(command[0], command.slice(1), (error, stdout, stderr) => {\n  // Fixed: use execFile with an array of arguments\n  if (error) {\n    console.error(`Error: ${error.message}`);\n    return;\n  }\n  console.log(`Report output:\\n${stdout}`);\n});",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "HIGH",
-        "risk_score": 9.0,
+        "risk_score": 9.5,
         "remediation_priority": "P1 — Immediate",
         "attack_vector": "Injection"
       }
