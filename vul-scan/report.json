@@ -1,54 +1,49 @@
 {
-  "generated_at": "2026-02-22T18:17:12Z",
-  "scanned_path": "D:\\CBRS-503\\vul-scan\\project",
-  "total_files": 4,
-  "total_chunks": 6,
-  "total_findings": 3,
+  "generated_at": "2026-02-24T17:32:47Z",
+  "scanned_path": "D:\\CBRS-503\\vul-scan\\project2",
+  "total_files": 2,
+  "total_chunks": 5,
+  "total_findings": 2,
   "risk_analysis": {
-    "overall_risk": "CRITICAL",
+    "overall_risk": "HIGH",
     "severity_breakdown": {
-      "high": 3,
+      "high": 2,
       "medium": 0,
       "low": 0
     },
     "owasp_category_breakdown": {
-      "A05:2025": 2,
-      "A04:2025": 1
+      "A05:2025": 2
     },
     "most_affected_files": [
       {
-        "file": "./project\\test.js",
+        "file": ".\\project2\\controller.js",
         "findings": 1
       },
       {
-        "file": "./project\\test.ts",
-        "findings": 1
-      },
-      {
-        "file": "./project\\vulnerable_app.py",
+        "file": ".\\\\project2\\\\service.js",
         "findings": 1
       }
     ]
   },
   "findings": [
     {
-      "file": "./project\\test.js",
-      "chunk_line_start": 1,
-      "chunk_line_end": 12,
+      "file": ".\\project2\\controller.js",
+      "chunk_line_start": 5,
+      "chunk_line_end": 16,
       "owasp_id": "A05:2025",
-      "name": "Command Injection",
-      "risk_summary": "User input concatenated into system commands enables code execution and data breaches.",
-      "description": "The run_command function is vulnerable to command injection attacks, allowing an attacker to execute arbitrary system commands.",
-      "evidence": "return require(\"child_process\").execSync(cmd).toString();",
+      "name": "SQL Injection",
+      "risk_summary": "User input concatenated into SQL query enables data exfiltration.",
+      "description": "The username parameter is concatenated into the query string without sanitization.",
+      "evidence": "const query = `SELECT * FROM users WHERE username = '${username}'`;",
       "exploitation_steps": [
-        "Supply cmd = \"ls -l\"",
-        "Command is executed on the system",
-        "Sensitive files and directories are exposed"
+        "Supply username = ' OR 1=1--",
+        "Query returns all users",
+        "Authentication bypassed"
       ],
-      "impact": "Arbitrary code execution, sensitive data exposure.",
+      "impact": "Full database access, data breach.",
       "confidence": 0.92,
-      "mitigation": "Use a safer alternative to execSync, such as spawn, and validate or escape user input to prevent command injection.",
-      "fixed_code": "const { spawn } = require('child_process');\nconst child = spawn(cmd, { shell: true });\nlet result = '';\nchild.stdout.on('data', (data) => {\n  result += data.toString();\n});\n// Fixed: use spawn and handle output safely\nreturn new Promise((resolve) => {\n  child.on('close', () => {\n    resolve(result);\n  });\n});",
+      "mitigation": "Use parameterized queries to prevent SQL injection.",
+      "fixed_code": "const query = `SELECT * FROM users WHERE username = ?`; db.query(query, [username], (err, results) => { // Fixed: parameterized query })",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "HIGH",
@@ -58,53 +53,27 @@
       }
     },
     {
-      "file": "./project\\test.ts",
-      "chunk_line_start": 1,
-      "chunk_line_end": 10,
-      "owasp_id": "A04:2025",
-      "name": "Hardcoded Secret",
-      "risk_summary": "API key is hardcoded in the code, enabling unauthorized access.",
-      "description": "The API key is directly written in the code without any encryption or secure storage.",
-      "evidence": "const API_KEY = \"sk_live_123456789\";",
-      "exploitation_steps": [
-        "Access the code",
-        "Extract the API key",
-        "Use the API key for malicious purposes"
-      ],
-      "impact": "Unauthorized access to the API, potential data breach.",
-      "confidence": 0.95,
-      "mitigation": "Load secret from environment variable instead of hardcoding.",
-      "fixed_code": "const API_KEY = process.env.API_KEY; // Fixed: use env var",
-      "risk_analysis": {
-        "severity": "HIGH",
-        "likelihood": "HIGH",
-        "risk_score": 9.5,
-        "remediation_priority": "P1 — Immediate",
-        "attack_vector": "Cryptographic Failure"
-      }
-    },
-    {
-      "file": "./project\\vulnerable_app.py",
-      "chunk_line_start": 6,
-      "chunk_line_end": 11,
+      "file": ".\\\\project2\\\\service.js",
+      "chunk_line_start": 3,
+      "chunk_line_end": 13,
       "owasp_id": "A05:2025",
-      "name": "SQL Injection",
-      "risk_summary": "User input concatenated into SQL query enables data exfiltration.",
-      "description": "The username and password parameters are concatenated into the query string without sanitization.",
-      "evidence": "query = f\"SELECT * FROM users WHERE username='{username}' AND password='{password}'\"",
+      "name": "Command Injection",
+      "risk_summary": "User input concatenated into command enables code execution.",
+      "description": "The filename parameter is concatenated into the command string without sanitization.",
+      "evidence": "const command = `cat reports/${filename}`;",
       "exploitation_steps": [
-        "Supply username = ' OR 1=1--",
-        "Query returns all users",
-        "Authentication bypassed"
+        "Supply filename = '../etc/passwd'",
+        "Command returns sensitive system file",
+        "Information disclosure"
       ],
-      "impact": "Full database access, data breach.",
-      "confidence": 0.92,
-      "mitigation": "Use parameterized queries to prevent SQL injection.",
-      "fixed_code": "import sqlite3\nquery = \"SELECT * FROM users WHERE username=? AND password=?\"\nparams = (username, password)\ncursor.execute(query, params) # Fixed: parameterized query",
+      "impact": "Arbitrary file read, potential code execution.",
+      "confidence": 0.9,
+      "mitigation": "Use a child process exec function with separate arguments to prevent command injection.",
+      "fixed_code": "const childProcess = require('child_process');\nconst command = 'cat';\nconst args = ['reports/' + filename];\nchildProcess.execFile(command, args, (error, stdout, stderr) => {\n  // Fixed: use execFile with separate args\n  if (error) {\n    console.error(`Error: ${error.message}`);\n    return;\n  }\n  console.log(`Report output:\\n${stdout}`);\n});",
       "risk_analysis": {
         "severity": "HIGH",
         "likelihood": "HIGH",
-        "risk_score": 9.2,
+        "risk_score": 9.0,
         "remediation_priority": "P1 — Immediate",
         "attack_vector": "Injection"
       }
