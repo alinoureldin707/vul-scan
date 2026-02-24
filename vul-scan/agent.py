@@ -15,30 +15,30 @@ def _create_model(temperature: float = TEMPERATURE) -> ChatGroq:
     )
 
 
-# Stage 1: finds vulnerabilities (no mitigation)
+# Stage 1: splits source files into logical code chunks
+agent_splitter = create_agent(
+    model=_create_model(temperature=0.0),
+    system_prompt=SPLITTER_SYSTEM_PROMPT,
+    response_format=CodeChunkList,
+)
+
+# Stage 2: finds vulnerabilities (no mitigation)
 agent_finder = create_agent(
     model=_create_model(),
     system_prompt=FINDER_SYSTEM_PROMPT,
     response_format=OWASPFindingReport,
 )
 
-# Stage 2: produces mitigation + fixed code for a single finding
+# Stage 3: produces mitigation + fixed code for a single finding
 agent_mitigator = create_agent(
     model=_create_model(),
     system_prompt=MITIGATION_SYSTEM_PROMPT,
     response_format=VulnerabilityMitigation,
 )
 
-# Stage 3: validates findings, drops false positives/duplicates, adjusts confidence
+# Stage 4: validates findings, drops false positives/duplicates, adjusts confidence
 agent_verifier = create_agent(
     model=_create_model(temperature=0.0),
     system_prompt=VERIFIER_SYSTEM_PROMPT,
     response_format=VerificationReport,
-)
-
-# Stage 4: splits source files into logical code chunks
-agent_splitter = create_agent(
-    model=_create_model(temperature=0.0),
-    system_prompt=SPLITTER_SYSTEM_PROMPT,
-    response_format=CodeChunkList,
 )
